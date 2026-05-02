@@ -12,6 +12,9 @@ import { createContext, useContext, useEffect, useState } from 'react';
 //   disagreement           — overlap stats per region
 //   metadata               — pipeline statistics (silhouette, ARI, etc.)
 //   selectedRegion / setSelectedRegion — cross-tab selection state
+//
+// Note: similarities.json uses snake_case keys (Python-generated). We alias
+// to camelCase here so JS components can use idiomatic property names.
 // ---------------------------------------------------------------------------
 
 const DataContext = createContext(null);
@@ -29,7 +32,18 @@ export function DataProvider({ children }) {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then(setData)
+      .then((raw) => {
+        // Map snake_case JSON keys to camelCase
+        setData({
+          metadata: raw.metadata,
+          regions: raw.regions,
+          identitySimilarity: raw.identity_similarity,
+          terroirSimilarity: raw.terroir_similarity,
+          identityNeighbours: raw.identity_neighbours,
+          terroirNeighbours: raw.terroir_neighbours,
+          disagreement: raw.disagreement,
+        });
+      })
       .catch(setError);
   }, []);
 
