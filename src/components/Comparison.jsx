@@ -8,55 +8,20 @@ import RadarChart from './RadarChart.jsx';
 // Comparison — overlay 2 to 4 regions on a single D-score radar.
 //
 // A multi-select picker on the left, the overlay radar on the right, and a
-// readout table below. A "Surprise me" button cycles through curated
-// identity-twin / terroir-stranger pairs that surface the project's most
-// rhetorically interesting cross-system findings.
+// readout table below.
 // ---------------------------------------------------------------------------
 
 const MAX_SELECTIONS = 4;
 
-// Hand-picked comparison sets that tell distinct stories.
-// Each entry: { regions, story }
-const SURPRISE_SETS = [
-  {
-    regions: ['Sicily', 'Central Otago'],
-    story: 'Identity twins, terroir strangers: same D-score profile across hemispheres.',
-  },
-  {
-    regions: ['Bordeaux', 'Burgundy'],
-    story: 'Two French canons, near-mirror identity profiles. Tradition and exteriority diverge.',
-  },
-  {
-    regions: ['Mosel', 'Northern Rhône'],
-    story: 'Two Old World Interior icons. Different country, different grape — overlapping shape.',
-  },
-  {
-    regions: ['Goriška Brda', 'Santa Barbara'],
-    story: "Slovenia and California — share the project's most balanced D-score profile.",
-  },
-  {
-    regions: ['Napa Valley', 'Bordeaux', 'Mendoza'],
-    story: 'Three classical Cabernet regions. Identity says they are not the same wine.',
-  },
-  {
-    regions: ['Santorini', 'Etna', 'Mosel'],
-    story: 'Three radically different terroirs that all rate high on Earthly and Tradition.',
-  },
-  {
-    regions: ['Loire', 'Friuli-Venezia Giulia'],
-    story: 'Identical identity profiles. Similar role, different national context.',
-  },
-  {
-    regions: ['Burgundy', 'Mosel', 'Piedmont', 'Tokaj'],
-    story: 'Four Old World Interior pillars. The cluster centre, made visible.',
-  },
-];
+// Default selection on first mount — Sicily + Central Otago is the project's
+// most rhetorically interesting cross-system finding (identity twins, terroir
+// strangers across hemispheres) and gives users a non-empty starting view.
+const DEFAULT_SELECTION = ['Sicily', 'Central Otago'];
 
 export default function Comparison() {
   const { regions } = useData();
   const [selected, setSelected] = useState([]);
-  const [surpriseIndex, setSurpriseIndex] = useState(-1);
-  const [currentStory, setCurrentStory] = useState(null);
+  const [bootstrapped, setBootstrapped] = useState(false);
 
   const selectedRegions = useMemo(
     () => selected.map((name) => regions.find((r) => r.name === name)).filter(Boolean),
@@ -65,7 +30,6 @@ export default function Comparison() {
 
   // Toggle a region in/out of the comparison set
   const toggle = (name) => {
-    setCurrentStory(null);
     setSelected((prev) => {
       if (prev.includes(name)) {
         return prev.filter((n) => n !== name);
@@ -77,26 +41,15 @@ export default function Comparison() {
     });
   };
 
-  const clear = () => {
+  const reset = () => {
     setSelected([]);
-    setCurrentStory(null);
   };
 
-  const surprise = () => {
-    const next = (surpriseIndex + 1) % SURPRISE_SETS.length;
-    const set = SURPRISE_SETS[next];
-    setSelected(set.regions);
-    setCurrentStory(set.story);
-    setSurpriseIndex(next);
-  };
-
-  // Bootstrap on first mount with a default surprise so the view isn't empty
+  // Bootstrap on first mount with the default selection so the view isn't empty
   useEffect(() => {
-    if (selected.length === 0 && surpriseIndex === -1) {
-      const set = SURPRISE_SETS[0];
-      setSelected(set.regions);
-      setCurrentStory(set.story);
-      setSurpriseIndex(0);
+    if (!bootstrapped && selected.length === 0) {
+      setSelected(DEFAULT_SELECTION);
+      setBootstrapped(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -109,14 +62,12 @@ export default function Comparison() {
             regions={regions}
             selected={selected}
             onToggle={toggle}
-            onClear={clear}
-            onSurprise={surprise}
+            onReset={reset}
           />
         </div>
         <div className="lg:col-span-8">
           <ComparisonView
             selectedRegions={selectedRegions}
-            story={currentStory}
             onRemove={toggle}
           />
         </div>
@@ -129,7 +80,7 @@ export default function Comparison() {
 // Picker
 // ---------------------------------------------------------------------------
 
-function Picker({ regions, selected, onToggle, onClear, onSurprise }) {
+function Picker({ regions, selected, onToggle, onReset }) {
   const [query, setQuery] = useState('');
   const isFull = selected.length >= MAX_SELECTIONS;
 
@@ -151,22 +102,14 @@ function Picker({ regions, selected, onToggle, onClear, onSurprise }) {
       <div className="p-3 border-b border-parchment-edge space-y-2">
         <div className="flex items-baseline justify-between">
           <span className="small-caps">{selected.length} of {MAX_SELECTIONS} selected</span>
-          <div className="flex gap-3 text-xs font-sans">
+          {selected.length > 0 && (
             <button
-              onClick={onSurprise}
-              className="text-wine hover:underline"
+              onClick={onReset}
+              className="text-xs font-sans text-ink-muted hover:text-wine"
             >
-              Surprise me ↻
+              reset
             </button>
-            {selected.length > 0 && (
-              <button
-                onClick={onClear}
-                className="text-ink-muted hover:text-wine"
-              >
-                reset
-              </button>
-            )}
-          </div>
+          )}
         </div>
         <input
           type="text"
@@ -250,7 +193,7 @@ function Group({ label, regions, selected, onToggle, disabled }) {
 // Comparison view (right column)
 // ---------------------------------------------------------------------------
 
-function ComparisonView({ selectedRegions, story, onRemove }) {
+function ComparisonView({ selectedRegions, onRemove }) {
   const datasets = useMemo(() => {
     return selectedRegions.map((r, i) => ({
       label: r.name,
@@ -265,7 +208,7 @@ function ComparisonView({ selectedRegions, story, onRemove }) {
   return (
     <div className="space-y-3">
       <div className="bg-white border border-parchment-edge rounded-lg p-5">
-        <Caption count={selectedRegions.length} story={story} />
+        <Caption count={selectedRegions.length} />
 
         {selectedRegions.length > 0 && (
           <SelectedTray regions={selectedRegions} onRemove={onRemove} />
@@ -290,7 +233,7 @@ function ComparisonView({ selectedRegions, story, onRemove }) {
   );
 }
 
-function Caption({ count, story }) {
+function Caption({ count }) {
   if (count === 0) {
     return (
       <p className="text-ink-muted leading-relaxed">
@@ -303,13 +246,6 @@ function Caption({ count, story }) {
     return (
       <p className="text-ink-muted leading-relaxed">
         One region selected. Pick at least one more to compare.
-      </p>
-    );
-  }
-  if (story) {
-    return (
-      <p className="text-ink-muted leading-relaxed italic">
-        {story}
       </p>
     );
   }

@@ -41,13 +41,12 @@ export default function Footer() {
           <a
             href="https://jskarabot18.github.io/vinotheca/"
             className="hover:text-wine transition-colors"
-            target="_blank" rel="noreferrer"
           >
             Vinotheca
           </a>
           <span className="text-ink-subtle">·</span>
           <a
-            href="mailto:correspondence@example.com"
+            href="mailto:hello@codexvini.com"
             className="hover:text-wine transition-colors"
           >
             Correspondence

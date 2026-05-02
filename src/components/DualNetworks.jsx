@@ -207,10 +207,10 @@ function NetworkPanel({
 
     const sim = d3.forceSimulation(nodes)
       .force('link', d3.forceLink(links).id((d) => d.id).distance(48).strength(0.45))
-      .force('charge', d3.forceManyBody().strength(-150))
-      .force('center', d3.forceCenter(W / 2, H / 2))
+      .force('charge', d3.forceManyBody().strength(-130))
+      .force('center', d3.forceCenter(W / 2, H / 2).strength(0.12))
       .force('collide', d3.forceCollide(NODE_RADIUS + 5))
-      .force('cluster', clusterForce(nodes, W, H, 0.08))
+      .force('cluster', clusterForce(nodes, W, H, 0.05))
       .force('bounds', boundsForce(nodes, W, H, PAD));
 
     const link = linkGroup
@@ -267,14 +267,25 @@ function NetworkPanel({
     });
 
     sim.on('end', () => {
+      const cx = W / 2;
+      const cy = H / 2;
       const byCluster = d3.group(nodes, (d) => d.cluster);
       const placements = Array.from(byCluster, ([cluster, ns]) => {
-        const xs = ns.map((d) => d.x);
-        const ys = ns.map((d) => d.y);
+        const meanX = d3.mean(ns.map((d) => d.x));
+        const meanY = d3.mean(ns.map((d) => d.y));
+        // Push label radially outward from canvas centre by ~22px, so labels
+        // sit on the OUTSIDE of each cluster — never overlapping inner nodes.
+        // Falls back to "above the cluster" when the cluster sits dead-centre.
+        const dx = meanX - cx;
+        const dy = meanY - cy;
+        const dist = Math.hypot(dx, dy);
+        const offset = 22;
+        const labelX = dist > 4 ? meanX + (dx / dist) * offset : meanX;
+        const labelY = dist > 4 ? meanY + (dy / dist) * offset : meanY - offset;
         return {
           cluster,
-          x: d3.mean(xs),
-          y: Math.min(...ys) - 14,
+          x: Math.max(PAD + 60, Math.min(W - PAD - 60, labelX)),
+          y: Math.max(PAD + 8,  Math.min(H - PAD - 8,  labelY)),
         };
       });
 
@@ -514,17 +525,24 @@ function ClusterLegend({ title, colors }) {
 // Forces
 // ---------------------------------------------------------------------------
 
-function clusterForce(nodes, W, H, strength = 0.08) {
+function clusterForce(nodes, W, H, strength = 0.05) {
+  // Arrange cluster anchors evenly around a circle inside the canvas.
+  // Compared to a grid, this distributes clusters symmetrically and avoids
+  // empty cells when the cluster count doesn't fit a nice rectangle (e.g. 7).
+  // Anchors sit on a ring at ~70% of the canvas half-min, leaving room for
+  // both the cluster spread and the label gutter at the edge.
   const clusters = Array.from(new Set(nodes.map((n) => n.cluster)));
-  const cols = Math.ceil(Math.sqrt(clusters.length));
-  const rows = Math.ceil(clusters.length / cols);
+  const cx = W / 2;
+  const cy = H / 2;
+  const radius = Math.min(W, H) * 0.32;
   const anchors = {};
   clusters.forEach((c, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
+    // Start at top (-π/2) and walk clockwise so the first cluster sits
+    // near the top of the canvas — visually consistent with reading order.
+    const theta = -Math.PI / 2 + (i / clusters.length) * 2 * Math.PI;
     anchors[c] = {
-      x: PAD + ((col + 0.5) / cols) * (W - 2 * PAD),
-      y: PAD + ((row + 0.5) / rows) * (H - 2 * PAD),
+      x: cx + radius * Math.cos(theta),
+      y: cy + radius * Math.sin(theta),
     };
   });
 
