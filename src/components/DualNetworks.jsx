@@ -24,15 +24,16 @@ import {
 const NODE_RADIUS = 5;
 const NODE_RADIUS_HOVER = 8;
 
+// Inner padding inside the SVG so nodes never sit flush against an edge.
+const PAD = 36;
+
 export default function DualNetworks() {
   const { regions, identityNeighbours, terroirNeighbours, selectedRegion, setSelectedRegion } = useData();
   const [hoveredRegion, setHoveredRegion] = useState(null);
   const [searchValue, setSearchValue] = useState('');
 
-  // The "active" region is hover (transient) or selection (persistent).
   const activeRegion = hoveredRegion ?? selectedRegion;
 
-  // Search filter
   const searchMatches = useMemo(() => {
     if (!searchValue.trim()) return [];
     const q = searchValue.toLowerCase();
@@ -97,7 +98,7 @@ export default function DualNetworks() {
 }
 
 // ---------------------------------------------------------------------------
-// Toolbar — search, current selection, clear
+// Toolbar
 // ---------------------------------------------------------------------------
 
 function Toolbar({ searchValue, setSearchValue, searchMatches, onPick, activeRegion, onClearSelection }) {
@@ -164,10 +165,6 @@ function NetworkPanel({
   const svgRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Initialize simulation + render.
-  // We deep-clone graph data here so that D3's in-place mutation of
-  // link.source / link.target doesn't pollute future renders if React
-  // re-runs the effect (e.g. on remount).
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !regions || !neighbours) return;
@@ -178,7 +175,6 @@ function NetworkPanel({
       cluster: r[clusterKey],
       country: r.country,
       world: r.world,
-      // Copy fields we'll read in tick handlers (not required by D3 itself)
     }));
 
     const edgeSet = new Set();
@@ -197,7 +193,7 @@ function NetworkPanel({
 
     const { width } = container.getBoundingClientRect();
     const W = width;
-    const H = Math.max(480, Math.min(560, width * 0.85));
+    const H = Math.max(560, Math.min(680, width * 0.95));
 
     const svg = d3.select(svgRef.current)
       .attr('viewBox', [0, 0, W, H])
@@ -207,17 +203,19 @@ function NetworkPanel({
     svg.selectAll('*').remove();
 
     const linkGroup = svg.append('g').attr('class', 'links');
-    const labelGroup = svg.append('g').attr('class', 'cluster-labels');
     const nodeGroup = svg.append('g').attr('class', 'nodes');
     const regionLabelGroup = svg.append('g').attr('class', 'region-labels');
+    // Cluster labels rendered last so they sit on top
+    const labelGroup = svg.append('g').attr('class', 'cluster-labels');
 
-    // Force simulation
     const sim = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id((d) => d.id).distance(50).strength(0.4))
-      .force('charge', d3.forceManyBody().strength(-130))
+      .force('link', d3.forceLink(links).id((d) => d.id).distance(48).strength(0.45))
+      .force('charge', d3.forceManyBody().strength(-150))
       .force('center', d3.forceCenter(W / 2, H / 2))
-      .force('collide', d3.forceCollide(NODE_RADIUS + 4))
-      .force('cluster', clusterForce(nodes, W, H));
+      .force('collide', d3.forceCollide(NODE_RADIUS + 5))
+      .force('cluster', clusterForce(nodes, W, H, 0.08))
+      // Hard boundary constraint — keeps nodes inside [PAD, W-PAD] × [PAD, H-PAD]
+      .force('bounds', boundsForce(nodes, W, H, PAD));
 
     const link = linkGroup
       .selectAll('line')
@@ -252,7 +250,11 @@ function NetworkPanel({
       .attr('fill', '#1F1A17')
       .attr('text-anchor', 'middle')
       .attr('pointer-events', 'none')
-      .attr('opacity', 0);
+      .attr('opacity', 0)
+      .attr('paint-order', 'stroke')
+      .attr('stroke', PARCHMENT)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round');
 
     sim.on('tick', () => {
       link
@@ -265,38 +267,49 @@ function NetworkPanel({
         .attr('cy', (d) => d.y);
       regionLabel
         .attr('x', (d) => d.x)
-        .attr('y', (d) => d.y - NODE_RADIUS - 4);
+        .attr('y', (d) => d.y - NODE_RADIUS - 5);
     });
 
     sim.on('end', () => {
+      // Place cluster labels at the TOP of each cluster's bounding box,
+      // so they don't sit on top of nodes.
       const byCluster = d3.group(nodes, (d) => d.cluster);
-      const centroids = Array.from(byCluster, ([cluster, ns]) => ({
-        cluster,
-        x: d3.mean(ns, (d) => d.x),
-        y: d3.mean(ns, (d) => d.y),
-      }));
+      const placements = Array.from(byCluster, ([cluster, ns]) => {
+        const xs = ns.map((d) => d.x);
+        const ys = ns.map((d) => d.y);
+        return {
+          cluster,
+          x: d3.mean(xs),
+          y: Math.min(...ys) - 14, // 14px above the topmost node
+        };
+      });
+
       labelGroup
         .selectAll('text')
-        .data(centroids, (d) => d.cluster)
+        .data(placements, (d) => d.cluster)
         .join('text')
         .text((d) => d.cluster)
         .attr('x', (d) => d.x)
-        .attr('y', (d) => d.y - 18)
+        .attr('y', (d) => d.y)
         .attr('font-family', 'Inter, system-ui, sans-serif')
         .attr('font-size', 11)
         .attr('font-weight', 600)
         .attr('letter-spacing', '0.06em')
         .attr('text-anchor', 'middle')
         .attr('fill', (d) => colors[d.cluster] || '#1F1A17')
+        // White stroke "halo" so labels read on top of edges and dots
+        .attr('paint-order', 'stroke')
+        .attr('stroke', '#FFFFFF')
+        .attr('stroke-width', 4)
+        .attr('stroke-linejoin', 'round')
         .attr('opacity', 0)
         .attr('pointer-events', 'none')
         .transition()
         .duration(400)
-        .attr('opacity', 0.85);
+        .attr('opacity', 0.92);
     });
 
     return () => sim.stop();
-  // Only re-init when the underlying data identity changes.
   }, [regions, neighbours, clusterKey, colors]);
 
   // Update visual highlighting when activeRegion changes (no re-init)
@@ -330,7 +343,6 @@ function NetworkPanel({
       .transition().duration(200)
       .attr('stroke', (d) => {
         if (!activeRegion) return '#C8BFB1';
-        // After D3 binds, source/target are node objects with .id
         const sId = typeof d.source === 'object' ? d.source.id : d.source;
         const tId = typeof d.target === 'object' ? d.target.id : d.target;
         const touchesActive = sId === activeRegion || tId === activeRegion;
@@ -361,7 +373,7 @@ function NetworkPanel({
 
     svg.select('.cluster-labels').selectAll('text')
       .transition().duration(200)
-      .attr('opacity', activeRegion ? 0.25 : 0.85);
+      .attr('opacity', activeRegion ? 0.3 : 0.92);
   }, [activeRegion, selectedRegion, neighbours]);
 
   return (
@@ -474,7 +486,7 @@ function KinList({ title, subtitle, neighbours, regions, colors, clusterKey, hig
 }
 
 // ---------------------------------------------------------------------------
-// Legend — cluster keys for both networks
+// Legend
 // ---------------------------------------------------------------------------
 
 function Legend() {
@@ -503,24 +515,24 @@ function ClusterLegend({ title, colors }) {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Forces
 // ---------------------------------------------------------------------------
 
-function clusterForce(nodes, W, H) {
+function clusterForce(nodes, W, H, strength = 0.08) {
   const clusters = Array.from(new Set(nodes.map((n) => n.cluster)));
   const cols = Math.ceil(Math.sqrt(clusters.length));
   const rows = Math.ceil(clusters.length / cols);
   const anchors = {};
+  // Anchor positions inside the padded rect so clusters don't aim at edges
   clusters.forEach((c, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
     anchors[c] = {
-      x: ((col + 0.5) / cols) * W,
-      y: ((row + 0.5) / rows) * H,
+      x: PAD + ((col + 0.5) / cols) * (W - 2 * PAD),
+      y: PAD + ((row + 0.5) / rows) * (H - 2 * PAD),
     };
   });
 
-  const strength = 0.06;
   return (alpha) => {
     nodes.forEach((d) => {
       const a = anchors[d.cluster];
@@ -528,6 +540,18 @@ function clusterForce(nodes, W, H) {
       d.vx += (a.x - d.x) * strength * alpha;
       d.vy += (a.y - d.y) * strength * alpha;
     });
+  };
+}
+
+// Hard-clamp boundary force — applied after all other forces each tick.
+function boundsForce(nodes, W, H, pad) {
+  return () => {
+    for (const d of nodes) {
+      if (d.x < pad) { d.x = pad; if (d.vx < 0) d.vx = 0; }
+      if (d.x > W - pad) { d.x = W - pad; if (d.vx > 0) d.vx = 0; }
+      if (d.y < pad) { d.y = pad; if (d.vy < 0) d.vy = 0; }
+      if (d.y > H - pad) { d.y = H - pad; if (d.vy > 0) d.vy = 0; }
+    }
   };
 }
 
