@@ -1,44 +1,62 @@
+// ---------------------------------------------------------------------------
+// Footer — Vinotheca-family lower-left.
+//
+// Mirrors TasteRank Explorer:
+//   centred wine-red italic motto with grape-cluster ornaments
+//   row of links (GitHub · License · CC BY-NC 4.0 · Vinotheca · Correspondence)
+//   bottom: © Jure Skarabot · MMXXVI
+// ---------------------------------------------------------------------------
+
 export default function Footer() {
   return (
     <footer className="border-t border-parchment-edge bg-parchment-warm mt-12">
-      <div className="max-w-6xl mx-auto px-6 py-8 text-sm text-ink-muted">
-        <div className="flex flex-wrap gap-x-6 gap-y-2 justify-between items-center">
-          <p>
-            <span className="italic">in vino, cognitio</span>
-            {' · '}
-            Companion tool to{' '}
-            <a
-              href="https://jskarabot18.github.io/soul-of-wine/"
-              className="text-wine hover:underline"
-              target="_blank" rel="noreferrer"
-            >
-              The Soul of Wine
-            </a>
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="text-center mb-4">
+          <p className="font-serif italic text-wine text-base inline-flex items-center gap-2">
+            <span aria-hidden="true">🍇</span>
+            <span>in vino, cognitio</span>
+            <span aria-hidden="true">🍇</span>
           </p>
-          <div className="flex gap-5">
-            <a
-              href="https://jskarabot18.github.io/vinotheca/"
-              className="hover:text-wine"
-              target="_blank" rel="noreferrer"
-            >
-              Vinotheca
-            </a>
-            <a
-              href="https://jskarabot18.github.io/soul-of-wine/docs/narrative.pdf"
-              className="hover:text-wine"
-              target="_blank" rel="noreferrer"
-            >
-              Read the paper
-            </a>
-            <a
-              href="https://github.com/jskarabot18/region-affinities"
-              className="hover:text-wine"
-              target="_blank" rel="noreferrer"
-            >
-              GitHub
-            </a>
-          </div>
         </div>
+
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs font-sans text-ink-muted">
+          <a
+            href="https://github.com/jskarabot18/region-affinities"
+            className="hover:text-wine transition-colors"
+            target="_blank" rel="noreferrer"
+          >
+            GitHub
+          </a>
+          <span className="text-ink-subtle">·</span>
+          <span>License</span>
+          <span className="text-ink-subtle">·</span>
+          <a
+            href="https://creativecommons.org/licenses/by-nc/4.0/"
+            className="hover:text-wine transition-colors"
+            target="_blank" rel="noreferrer"
+          >
+            CC BY-NC 4.0
+          </a>
+          <span className="text-ink-subtle">·</span>
+          <a
+            href="https://jskarabot18.github.io/vinotheca/"
+            className="hover:text-wine transition-colors"
+            target="_blank" rel="noreferrer"
+          >
+            Vinotheca
+          </a>
+          <span className="text-ink-subtle">·</span>
+          <a
+            href="mailto:correspondence@example.com"
+            className="hover:text-wine transition-colors"
+          >
+            Correspondence
+          </a>
+        </div>
+
+        <p className="text-center text-xs font-sans text-ink-subtle mt-3">
+          © Jure Skarabot · MMXXVI
+        </p>
       </div>
     </footer>
   );
