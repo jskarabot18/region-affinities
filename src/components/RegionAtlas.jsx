@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useData } from '../lib/dataContext.jsx';
-import { IDENTITY_COLORS, TERROIR_COLORS, WINE } from '../lib/colors.js';
+import { IDENTITY_COLORS, TERROIR_COLORS } from '../lib/colors.js';
 import { DIMENSIONS, dscoreVector } from '../lib/dimensions.js';
 import RadarChart from './RadarChart.jsx';
 
@@ -11,21 +11,18 @@ import RadarChart from './RadarChart.jsx';
 //   Left   — searchable region picker, grouped Old World / New World
 //   Middle — selected region card with D-score radar
 //   Right  — identity kin and terroir kin lists, with shared-kin highlighting
-//
-// Selecting here updates the global `selectedRegion`, so when the user
-// switches to Dual Networks (Tab 1) the same region stays focused.
 // ---------------------------------------------------------------------------
 
 export default function RegionAtlas() {
   const { regions, identityNeighbours, terroirNeighbours, selectedRegion, setSelectedRegion } = useData();
 
-  // If nothing selected on first visit, default to a region with strong
-  // identity ↔ terroir divergence (Bordeaux is canonical from the narrative).
+  // Ensure a default selection ONCE on mount, only if nothing is selected.
+  // Bordeaux is the canonical example of identity/terroir divergence.
   useEffect(() => {
     if (!selectedRegion) {
       setSelectedRegion('Bordeaux');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const region = useMemo(
@@ -96,6 +93,8 @@ export default function RegionAtlas() {
 
 function RegionPicker({ regions, selected, onPick }) {
   const [query, setQuery] = useState('');
+  const listRef = useRef(null);
+  const selectedRef = useRef(null);
 
   const grouped = useMemo(() => {
     const filtered = query.trim()
@@ -110,6 +109,19 @@ function RegionPicker({ regions, selected, onPick }) {
     return { old, nw };
   }, [regions, query]);
 
+  // Scroll the selected item into view when the selection changes
+  useEffect(() => {
+    if (selectedRef.current && listRef.current) {
+      const itemRect = selectedRef.current.getBoundingClientRect();
+      const listRect = listRef.current.getBoundingClientRect();
+      const isVisible =
+        itemRect.top >= listRect.top && itemRect.bottom <= listRect.bottom;
+      if (!isVisible) {
+        selectedRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
+  }, [selected]);
+
   return (
     <div className="bg-white border border-parchment-edge rounded-lg overflow-hidden">
       <div className="p-3 border-b border-parchment-edge">
@@ -123,9 +135,21 @@ function RegionPicker({ regions, selected, onPick }) {
                      placeholder:text-ink-subtle"
         />
       </div>
-      <div className="max-h-[700px] overflow-y-auto">
-        <RegionGroup label="Old World" regions={grouped.old} selected={selected} onPick={onPick} />
-        <RegionGroup label="New World" regions={grouped.nw} selected={selected} onPick={onPick} />
+      <div ref={listRef} className="max-h-[700px] overflow-y-auto">
+        <RegionGroup
+          label="Old World"
+          regions={grouped.old}
+          selected={selected}
+          onPick={onPick}
+          selectedRef={selectedRef}
+        />
+        <RegionGroup
+          label="New World"
+          regions={grouped.nw}
+          selected={selected}
+          onPick={onPick}
+          selectedRef={selectedRef}
+        />
         {grouped.old.length === 0 && grouped.nw.length === 0 && (
           <div className="p-4 text-sm text-ink-subtle text-center">No matches.</div>
         )}
@@ -134,18 +158,18 @@ function RegionPicker({ regions, selected, onPick }) {
   );
 }
 
-function RegionGroup({ label, regions, selected, onPick }) {
+function RegionGroup({ label, regions, selected, onPick, selectedRef }) {
   if (regions.length === 0) return null;
   return (
     <div>
-      <div className="px-3 py-1.5 small-caps bg-parchment-warm border-y border-parchment-edge sticky top-0">
+      <div className="px-3 py-1.5 small-caps bg-parchment-warm border-y border-parchment-edge sticky top-0 z-10">
         {label} <span className="text-ink-subtle ml-1">· {regions.length}</span>
       </div>
       <ul>
         {regions.map((r) => {
           const isSelected = r.name === selected;
           return (
-            <li key={r.name}>
+            <li key={r.name} ref={isSelected ? selectedRef : null}>
               <button
                 onClick={() => onPick(r.name)}
                 className={`w-full text-left px-3 py-2 flex items-baseline gap-2 transition-colors
@@ -228,7 +252,7 @@ function DScoreReadout({ region }) {
         return (
           <div key={dim.key} className="flex items-baseline gap-2 text-xs font-sans">
             <span className="text-ink-subtle uppercase tracking-wide flex-shrink-0">{dim.key}</span>
-            <span className="text-ink-muted truncate">{dim.label.split(' ↔ ')[0]} ↔ {dim.label.split(' ↔ ')[1]}</span>
+            <span className="text-ink-muted truncate">{dim.label}</span>
             <span
               className={`ml-auto font-medium tabular-nums ${
                 isZero ? 'text-ink-subtle' : v > 0 ? 'text-wine' : 'text-ink'

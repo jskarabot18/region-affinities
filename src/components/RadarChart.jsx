@@ -8,11 +8,11 @@ import { WINE } from '../lib/colors.js';
 // Inputs:
 //   datasets: array of { values: [D1..D6], label, color, fillOpacity }
 //   dimensions: array of { key, label, pos, neg } in order D1..D6
-//   size: square SVG side length in px (default 360)
+//   size: square SVG side length in px (default 420)
 //
-// The score range is hard-coded to [-2, +2]. Six concentric rings are drawn
-// at -2, -1, 0, 1, 2 (with 0 emphasized as the equator). Axes radiate from
-// the centre at 60° intervals.
+// Score range hard-coded to [-2, +2]. Concentric polygons at integer values,
+// equator (0) emphasized with a dashed stroke. Axes radiate from centre at
+// 60° intervals starting from top.
 // ---------------------------------------------------------------------------
 
 const SCORE_MIN = -2;
@@ -22,9 +22,8 @@ const RINGS = [-2, -1, 0, 1, 2];
 export default function RadarChart({
   datasets = [],
   dimensions,
-  size = 360,
+  size = 420,
   showAxisLabels = true,
-  showPolarityLabels = true,
 }) {
   const svgRef = useRef(null);
 
@@ -34,15 +33,17 @@ export default function RadarChart({
 
     const cx = size / 2;
     const cy = size / 2;
-    const radius = size * 0.35;
+    // Reserve 30% of half-size for the label margin around the chart.
+    // Radius is 32% of size — leaves comfortable label gutter on all sides.
+    const radius = size * 0.32;
 
     svg
       .attr('viewBox', [0, 0, size, size])
       .attr('width', size)
       .attr('height', size);
 
-    const n = dimensions.length; // 6
-    const angleFor = (i) => (i / n) * 2 * Math.PI - Math.PI / 2; // start at top
+    const n = dimensions.length;
+    const angleFor = (i) => (i / n) * 2 * Math.PI - Math.PI / 2;
 
     const radiusFor = (score) => {
       const norm = (score - SCORE_MIN) / (SCORE_MAX - SCORE_MIN);
@@ -64,7 +65,7 @@ export default function RadarChart({
         .attr('points', closed.map((p) => p.join(',')).join(' '))
         .attr('fill', 'none')
         .attr('stroke', isEquator ? '#9A9089' : '#E8E1D3')
-        .attr('stroke-width', isEquator ? 1 : 1)
+        .attr('stroke-width', 1)
         .attr('stroke-dasharray', isEquator ? '4 3' : '0');
     });
 
@@ -84,7 +85,10 @@ export default function RadarChart({
         .attr('stroke-width', 1);
     });
 
-    // ---- Axis labels (dimension names) ----
+    // ---- Axis labels ----
+    // Two-line labels: positive pole on top, ↔, negative pole on bottom.
+    // We position the label group at radius+18, then handle multi-line text
+    // explicitly so we can control wrapping and avoid clipping.
     if (showAxisLabels) {
       const labelGroup = svg.append('g').attr('class', 'axis-labels');
       dimensions.forEach((dim, i) => {
@@ -93,51 +97,50 @@ export default function RadarChart({
         const x = cx + labelRadius * Math.cos(a);
         const y = cy + labelRadius * Math.sin(a);
 
-        // Anchor based on quadrant
+        // Anchor based on horizontal position of the label
         let anchor = 'middle';
-        if (Math.cos(a) > 0.3) anchor = 'start';
-        else if (Math.cos(a) < -0.3) anchor = 'end';
+        const ax = Math.cos(a);
+        if (ax > 0.3) anchor = 'start';
+        else if (ax < -0.3) anchor = 'end';
 
-        labelGroup
-          .append('text')
+        // Split label like "Interiority ↔ Exteriority" into two parts
+        const parts = dim.label.split(' ↔ ');
+
+        // Position adjusts vertically: above-axis labels need to lift; below-axis labels drop
+        const ay = Math.sin(a);
+        const lineHeight = 12;
+        // baseline shift so multi-line label is visually centred on the anchor point
+        const baselineShift = ay < -0.5 ? -lineHeight - 2 : ay > 0.5 ? 4 : -lineHeight / 2;
+
+        const text = labelGroup.append('text')
           .attr('x', x)
-          .attr('y', y)
+          .attr('y', y + baselineShift)
           .attr('text-anchor', anchor)
-          .attr('dy', '0.35em')
           .attr('font-family', 'Inter, system-ui, sans-serif')
           .attr('font-size', 10)
           .attr('font-weight', 600)
-          .attr('letter-spacing', '0.06em')
-          .attr('fill', '#5C534D')
-          .text(dim.label.toUpperCase());
+          .attr('letter-spacing', '0.04em')
+          .attr('fill', '#5C534D');
 
-        // Polarity hints below the label (small, italic)
-        if (showPolarityLabels) {
-          const hintRadius = radius + 36;
-          const hx = cx + hintRadius * Math.cos(a);
-          const hy = cy + hintRadius * Math.sin(a);
-          labelGroup
-            .append('text')
-            .attr('x', hx)
-            .attr('y', hy)
-            .attr('text-anchor', anchor)
-            .attr('dy', '0.35em')
-            .attr('font-family', 'EB Garamond, Georgia, serif')
-            .attr('font-size', 10)
-            .attr('font-style', 'italic')
-            .attr('fill', '#9A9089')
-            .text(`${dim.pos.split(',')[0].toLowerCase()}`);
-        }
+        text.append('tspan')
+          .attr('x', x)
+          .attr('dy', '0em')
+          .text(parts[0].toUpperCase());
+        text.append('tspan')
+          .attr('x', x)
+          .attr('dy', '1.15em')
+          .attr('fill', '#9A9089')
+          .text(`↔ ${parts[1] ? parts[1].toUpperCase() : ''}`);
       });
     }
 
-    // ---- Score scale labels (-2, -1, 0, 1, 2) on top axis ----
+    // ---- Score scale labels (on top axis) ----
     const scaleGroup = svg.append('g').attr('class', 'scale-labels');
     RINGS.forEach((ring) => {
       const r = radiusFor(ring);
       scaleGroup
         .append('text')
-        .attr('x', cx + 4)
+        .attr('x', cx + 5)
         .attr('y', cy - r)
         .attr('dy', '0.35em')
         .attr('font-family', 'Inter, system-ui, sans-serif')
@@ -158,7 +161,6 @@ export default function RadarChart({
       const color = ds.color || WINE;
       const fillOpacity = ds.fillOpacity ?? 0.18;
 
-      // Fill
       dataGroup
         .append('polygon')
         .attr('points', closed.map((p) => p.join(',')).join(' '))
@@ -168,7 +170,6 @@ export default function RadarChart({
         .attr('stroke-width', 2)
         .attr('stroke-linejoin', 'round');
 
-      // Vertex dots
       points.forEach(([x, y]) => {
         dataGroup
           .append('circle')
@@ -180,7 +181,7 @@ export default function RadarChart({
           .attr('stroke-width', 1.5);
       });
     });
-  }, [datasets, dimensions, size, showAxisLabels, showPolarityLabels]);
+  }, [datasets, dimensions, size, showAxisLabels]);
 
   return <svg ref={svgRef} />;
 }
