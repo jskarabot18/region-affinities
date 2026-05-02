@@ -5,19 +5,20 @@ import { WINE } from '../lib/colors.js';
 // ---------------------------------------------------------------------------
 // RadarChart — six-axis radar for D-score profiles.
 //
-// Inputs:
-//   datasets: array of { values: [D1..D6], label, color, fillOpacity }
-//   dimensions: array of { key, label, pos, neg } in order D1..D6
-//   size: square SVG side length in px (default 420)
-//
-// Score range hard-coded to [-2, +2]. Concentric polygons at integer values,
-// equator (0) emphasized with a dashed stroke. Axes radiate from centre at
-// 60° intervals starting from top.
+// The viewBox is intentionally WIDER than tall to leave horizontal gutters
+// for long axis labels like "INTERIORITY ↔ EXTERIORITY" and "TRADITION ↔
+// REINVENTION", which need ~80–110px of label width on the left and right
+// without compromising the radar's drawn radius.
 // ---------------------------------------------------------------------------
 
 const SCORE_MIN = -2;
 const SCORE_MAX = 2;
 const RINGS = [-2, -1, 0, 1, 2];
+
+// Horizontal label gutter on each side of the chart.
+// Long words like "EXTERIORITY" (11 chars * ~6.5px @ 10pt) need ~75px;
+// pad to 90 for safety.
+const LABEL_GUTTER = 90;
 
 export default function RadarChart({
   datasets = [],
@@ -31,16 +32,24 @@ export default function RadarChart({
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    const cx = size / 2;
-    const cy = size / 2;
-    // Reserve 30% of half-size for the label margin around the chart.
-    // Radius is 32% of size — leaves comfortable label gutter on all sides.
-    const radius = size * 0.32;
+    // Drawing area uses `size` as both width and height.
+    // viewBox is wider than tall: -GUTTER to size+GUTTER on x.
+    const drawW = size;
+    const drawH = size;
+    const totalW = drawW + 2 * LABEL_GUTTER;
+    const totalH = drawH + 20; // small vertical pad for top/bottom labels
+
+    const cx = LABEL_GUTTER + drawW / 2;
+    const cy = drawH / 2 + 10;
+    const radius = drawW * 0.36; // larger radius now that we have label room
 
     svg
-      .attr('viewBox', [0, 0, size, size])
-      .attr('width', size)
-      .attr('height', size);
+      .attr('viewBox', [0, 0, totalW, totalH])
+      // Keep aspect natural so SVG scales to its parent's width
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%')
+      .style('height', 'auto')
+      .style('max-width', `${totalW}px`);
 
     const n = dimensions.length;
     const angleFor = (i) => (i / n) * 2 * Math.PI - Math.PI / 2;
@@ -85,31 +94,25 @@ export default function RadarChart({
         .attr('stroke-width', 1);
     });
 
-    // ---- Axis labels ----
-    // Two-line labels: positive pole on top, ↔, negative pole on bottom.
-    // We position the label group at radius+18, then handle multi-line text
-    // explicitly so we can control wrapping and avoid clipping.
+    // ---- Axis labels (two-line, no polarity hints) ----
     if (showAxisLabels) {
       const labelGroup = svg.append('g').attr('class', 'axis-labels');
       dimensions.forEach((dim, i) => {
         const a = angleFor(i);
-        const labelRadius = radius + 22;
+        const labelRadius = radius + 18;
         const x = cx + labelRadius * Math.cos(a);
         const y = cy + labelRadius * Math.sin(a);
 
-        // Anchor based on horizontal position of the label
         let anchor = 'middle';
         const ax = Math.cos(a);
         if (ax > 0.3) anchor = 'start';
         else if (ax < -0.3) anchor = 'end';
 
-        // Split label like "Interiority ↔ Exteriority" into two parts
         const parts = dim.label.split(' ↔ ');
 
-        // Position adjusts vertically: above-axis labels need to lift; below-axis labels drop
+        // baseline shift: above-axis labels need to lift, below need to drop
         const ay = Math.sin(a);
         const lineHeight = 12;
-        // baseline shift so multi-line label is visually centred on the anchor point
         const baselineShift = ay < -0.5 ? -lineHeight - 2 : ay > 0.5 ? 4 : -lineHeight / 2;
 
         const text = labelGroup.append('text')
@@ -134,7 +137,7 @@ export default function RadarChart({
       });
     }
 
-    // ---- Score scale labels (on top axis) ----
+    // ---- Score scale labels (on top axis, just to right of centre) ----
     const scaleGroup = svg.append('g').attr('class', 'scale-labels');
     RINGS.forEach((ring) => {
       const r = radiusFor(ring);
@@ -149,7 +152,7 @@ export default function RadarChart({
         .text(ring > 0 ? `+${ring}` : `${ring}`);
     });
 
-    // ---- Datasets (filled polygons) ----
+    // ---- Datasets ----
     const dataGroup = svg.append('g').attr('class', 'data');
     datasets.forEach((ds) => {
       const points = ds.values.map((v, i) => {
