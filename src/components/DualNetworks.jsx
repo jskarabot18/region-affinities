@@ -21,7 +21,6 @@ import {
 // so the user can see how kinship shifts between the two systems.
 // ---------------------------------------------------------------------------
 
-const K = 5;
 const NODE_RADIUS = 5;
 const NODE_RADIUS_HOVER = 8;
 
@@ -164,22 +163,30 @@ function NetworkPanel({
 }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
-  const simulationRef = useRef(null);
 
-  // Build graph data once per (regions, neighbours) pair.
-  const graph = useMemo(() => {
+  // Initialize simulation + render.
+  // We deep-clone graph data here so that D3's in-place mutation of
+  // link.source / link.target doesn't pollute future renders if React
+  // re-runs the effect (e.g. on remount).
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !regions || !neighbours) return;
+
+    // ---- Build graph (deep-cloned, scoped to this effect) ----
     const nodes = regions.map((r) => ({
       id: r.name,
       cluster: r[clusterKey],
       country: r.country,
       world: r.world,
-      ...r,
+      // Copy fields we'll read in tick handlers (not required by D3 itself)
     }));
+
     const edgeSet = new Set();
     const links = [];
     neighbours.forEach((entry) => {
       entry.neighbours.forEach((nb) => {
-        const a = entry.region, b = nb.name;
+        const a = entry.region;
+        const b = nb.name;
         const key = a < b ? `${a}|${b}` : `${b}|${a}`;
         if (!edgeSet.has(key)) {
           edgeSet.add(key);
@@ -187,15 +194,8 @@ function NetworkPanel({
         }
       });
     });
-    return { nodes, links };
-  }, [regions, neighbours, clusterKey]);
 
-  // Initialize simulation + render once.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const { width, height } = container.getBoundingClientRect();
+    const { width } = container.getBoundingClientRect();
     const W = width;
     const H = Math.max(480, Math.min(560, width * 0.85));
 
@@ -212,19 +212,16 @@ function NetworkPanel({
     const regionLabelGroup = svg.append('g').attr('class', 'region-labels');
 
     // Force simulation
-    const sim = d3.forceSimulation(graph.nodes)
-      .force('link', d3.forceLink(graph.links).id((d) => d.id).distance(50).strength(0.4))
+    const sim = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id((d) => d.id).distance(50).strength(0.4))
       .force('charge', d3.forceManyBody().strength(-130))
       .force('center', d3.forceCenter(W / 2, H / 2))
       .force('collide', d3.forceCollide(NODE_RADIUS + 4))
-      // Mild cluster cohesion: pull each node gently toward its cluster centroid
-      .force('cluster', clusterForce(graph.nodes, clusterKey === 'identity_cluster' ? 'cluster' : 'cluster', W, H));
-
-    simulationRef.current = sim;
+      .force('cluster', clusterForce(nodes, W, H));
 
     const link = linkGroup
       .selectAll('line')
-      .data(graph.links)
+      .data(links)
       .join('line')
       .attr('stroke', '#C8BFB1')
       .attr('stroke-opacity', 0.45)
@@ -232,7 +229,7 @@ function NetworkPanel({
 
     const node = nodeGroup
       .selectAll('circle')
-      .data(graph.nodes)
+      .data(nodes)
       .join('circle')
       .attr('r', NODE_RADIUS)
       .attr('fill', (d) => colors[d.cluster] || '#888')
@@ -246,7 +243,7 @@ function NetworkPanel({
 
     const regionLabel = regionLabelGroup
       .selectAll('text')
-      .data(graph.nodes)
+      .data(nodes)
       .join('text')
       .text((d) => d.id)
       .attr('font-family', 'Inter, system-ui, sans-serif')
@@ -257,7 +254,6 @@ function NetworkPanel({
       .attr('pointer-events', 'none')
       .attr('opacity', 0);
 
-    // Cluster centroid labels appear after layout settles.
     sim.on('tick', () => {
       link
         .attr('x1', (d) => d.source.x)
@@ -273,12 +269,11 @@ function NetworkPanel({
     });
 
     sim.on('end', () => {
-      // Compute centroids of each cluster from the settled layout
-      const byCluster = d3.group(graph.nodes, (d) => d.cluster);
-      const centroids = Array.from(byCluster, ([cluster, nodes]) => ({
+      const byCluster = d3.group(nodes, (d) => d.cluster);
+      const centroids = Array.from(byCluster, ([cluster, ns]) => ({
         cluster,
-        x: d3.mean(nodes, (d) => d.x),
-        y: d3.mean(nodes, (d) => d.y),
+        x: d3.mean(ns, (d) => d.x),
+        y: d3.mean(ns, (d) => d.y),
       }));
       labelGroup
         .selectAll('text')
@@ -291,7 +286,6 @@ function NetworkPanel({
         .attr('font-size', 11)
         .attr('font-weight', 600)
         .attr('letter-spacing', '0.06em')
-        .attr('text-transform', 'uppercase')
         .attr('text-anchor', 'middle')
         .attr('fill', (d) => colors[d.cluster] || '#1F1A17')
         .attr('opacity', 0)
@@ -302,18 +296,16 @@ function NetworkPanel({
     });
 
     return () => sim.stop();
-    // We only re-initialize when graph topology changes, not on hover/select.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph]);
+  // Only re-init when the underlying data identity changes.
+  }, [regions, neighbours, clusterKey, colors]);
 
   // Update visual highlighting when activeRegion changes (no re-init)
   useEffect(() => {
     const svg = d3.select(svgRef.current);
     if (svg.empty()) return;
 
-    // Compute neighbour set of active region, if any
     let neighbourSet = new Set();
-    if (activeRegion) {
+    if (activeRegion && neighbours) {
       const entry = neighbours.find((n) => n.region === activeRegion);
       if (entry) {
         neighbourSet = new Set(entry.neighbours.map((n) => n.name));
@@ -338,17 +330,24 @@ function NetworkPanel({
       .transition().duration(200)
       .attr('stroke', (d) => {
         if (!activeRegion) return '#C8BFB1';
-        const touchesActive = d.source.id === activeRegion || d.target.id === activeRegion;
+        // After D3 binds, source/target are node objects with .id
+        const sId = typeof d.source === 'object' ? d.source.id : d.source;
+        const tId = typeof d.target === 'object' ? d.target.id : d.target;
+        const touchesActive = sId === activeRegion || tId === activeRegion;
         return touchesActive ? WINE : '#E8E1D3';
       })
       .attr('stroke-opacity', (d) => {
         if (!activeRegion) return 0.45;
-        const touchesActive = d.source.id === activeRegion || d.target.id === activeRegion;
+        const sId = typeof d.source === 'object' ? d.source.id : d.source;
+        const tId = typeof d.target === 'object' ? d.target.id : d.target;
+        const touchesActive = sId === activeRegion || tId === activeRegion;
         return touchesActive ? 0.85 : 0.15;
       })
       .attr('stroke-width', (d) => {
         if (!activeRegion) return 1;
-        const touchesActive = d.source.id === activeRegion || d.target.id === activeRegion;
+        const sId = typeof d.source === 'object' ? d.source.id : d.source;
+        const tId = typeof d.target === 'object' ? d.target.id : d.target;
+        const touchesActive = sId === activeRegion || tId === activeRegion;
         return touchesActive ? 2 : 0.8;
       });
 
@@ -507,9 +506,8 @@ function ClusterLegend({ title, colors }) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function clusterForce(nodes, clusterField, W, H) {
-  // Compute initial cluster anchors arranged on a grid for stable layout
-  const clusters = Array.from(new Set(nodes.map((n) => n[clusterField])));
+function clusterForce(nodes, W, H) {
+  const clusters = Array.from(new Set(nodes.map((n) => n.cluster)));
   const cols = Math.ceil(Math.sqrt(clusters.length));
   const rows = Math.ceil(clusters.length / cols);
   const anchors = {};
@@ -525,7 +523,7 @@ function clusterForce(nodes, clusterField, W, H) {
   const strength = 0.06;
   return (alpha) => {
     nodes.forEach((d) => {
-      const a = anchors[d[clusterField]];
+      const a = anchors[d.cluster];
       if (!a) return;
       d.vx += (a.x - d.x) * strength * alpha;
       d.vy += (a.y - d.y) * strength * alpha;
