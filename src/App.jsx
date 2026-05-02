@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { DataProvider } from './lib/dataContext.jsx';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
+import DualNetworks from './components/DualNetworks.jsx';
 
-// Tab placeholders — each replaced as we build them out.
+// Placeholder for tabs not yet built
 function Placeholder({ title, blurb }) {
   return (
     <div className="max-w-3xl mx-auto py-20 px-6 text-center">
@@ -50,7 +51,11 @@ export default function App() {
       <div className="min-h-screen flex flex-col bg-parchment">
         <Header tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
         <main className="flex-1">
-          <Placeholder title={tab.label} blurb={tab.blurb} />
+          {activeTab === 'networks' ? (
+            <DualNetworks />
+          ) : (
+            <Placeholder title={tab.label} blurb={tab.blurb} />
+          )}
         </main>
         <Footer />
       </div>
