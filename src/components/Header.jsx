@@ -24,9 +24,7 @@ const DOCS = [
   { label: 'Technical Appendix',            href: `${SOUL_OF_WINE_BASE}/docs/technical.pdf#page=1` },
   { label: 'Region Profiles — Identity',    href: `${SOUL_OF_WINE_BASE}/docs/layer1-descriptions.pdf#page=1` },
   { label: 'Region Profiles — Terroir',     href: `${SOUL_OF_WINE_BASE}/docs/layer2-descriptions.pdf#page=1` },
-  // NOTE: filename guess — Soul of Wine site might use a different path. If 404,
-  // try /docs/methods-primer.pdf or /methodsprimer.pdf or similar.
-  { label: 'Methods Primer',                href: `${SOUL_OF_WINE_BASE}/methodsprimer.pdf#page=1` },
+  { label: 'Methods Primer',                href: `${SOUL_OF_WINE_BASE}/docs/methods-primer.pdf#page=1` },
 ];
 
 export default function Header({ tabs, activeTab, onTabChange }) {
