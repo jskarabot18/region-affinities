@@ -4,8 +4,8 @@ import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
 import DualNetworks from './components/DualNetworks.jsx';
 import BipartiteFlow from './components/BipartiteFlow.jsx';
+import RegionAtlas from './components/RegionAtlas.jsx';
 
-// Placeholder for tabs not yet built
 function Placeholder({ title, blurb }) {
   return (
     <div className="max-w-3xl mx-auto py-20 px-6 text-center">
@@ -54,9 +54,8 @@ export default function App() {
         <main className="flex-1">
           {activeTab === 'networks' && <DualNetworks />}
           {activeTab === 'flow' && <BipartiteFlow />}
-          {(activeTab === 'atlas' || activeTab === 'compare') && (
-            <Placeholder title={tab.label} blurb={tab.blurb} />
-          )}
+          {activeTab === 'atlas' && <RegionAtlas />}
+          {activeTab === 'compare' && <Placeholder title={tab.label} blurb={tab.blurb} />}
         </main>
         <Footer />
       </div>
