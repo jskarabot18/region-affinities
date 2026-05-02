@@ -17,14 +17,12 @@ import {
 //   Right — terroir similarity (cosine on terroir PCA coordinates)
 //
 // Edges are the union of each region's top-K nearest neighbours (default K=5).
-// Hovering a region highlights it (and its neighbours) on BOTH graphs at once,
-// so the user can see how kinship shifts between the two systems.
+// Hovering a region highlights it (and its top-5 kin) on BOTH graphs at once,
+// AND shows the names of the active region + all 5 kin labels in each graph.
 // ---------------------------------------------------------------------------
 
 const NODE_RADIUS = 5;
 const NODE_RADIUS_HOVER = 8;
-
-// Inner padding inside the SVG so nodes never sit flush against an edge.
 const PAD = 36;
 
 export default function DualNetworks() {
@@ -53,7 +51,7 @@ export default function DualNetworks() {
           setSearchValue('');
         }}
         activeRegion={activeRegion}
-        onClearSelection={() => setSelectedRegion(null)}
+        onResetSelection={() => setSelectedRegion(null)}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
@@ -101,7 +99,7 @@ export default function DualNetworks() {
 // Toolbar
 // ---------------------------------------------------------------------------
 
-function Toolbar({ searchValue, setSearchValue, searchMatches, onPick, activeRegion, onClearSelection }) {
+function Toolbar({ searchValue, setSearchValue, searchMatches, onPick, activeRegion, onResetSelection }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="relative flex-1 min-w-[260px] max-w-md">
@@ -140,10 +138,10 @@ function Toolbar({ searchValue, setSearchValue, searchMatches, onPick, activeReg
             <span className="small-caps mr-2">Focused:</span>
             <span className="text-ink font-medium">{activeRegion}</span>
             <button
-              onClick={onClearSelection}
+              onClick={onResetSelection}
               className="ml-3 text-xs text-wine hover:underline"
             >
-              clear
+              reset
             </button>
           </>
         ) : (
@@ -169,7 +167,7 @@ function NetworkPanel({
     const container = containerRef.current;
     if (!container || !regions || !neighbours) return;
 
-    // ---- Build graph (deep-cloned, scoped to this effect) ----
+    // Build graph (deep-cloned, scoped to this effect)
     const nodes = regions.map((r) => ({
       id: r.name,
       cluster: r[clusterKey],
@@ -205,7 +203,6 @@ function NetworkPanel({
     const linkGroup = svg.append('g').attr('class', 'links');
     const nodeGroup = svg.append('g').attr('class', 'nodes');
     const regionLabelGroup = svg.append('g').attr('class', 'region-labels');
-    // Cluster labels rendered last so they sit on top
     const labelGroup = svg.append('g').attr('class', 'cluster-labels');
 
     const sim = d3.forceSimulation(nodes)
@@ -214,7 +211,6 @@ function NetworkPanel({
       .force('center', d3.forceCenter(W / 2, H / 2))
       .force('collide', d3.forceCollide(NODE_RADIUS + 5))
       .force('cluster', clusterForce(nodes, W, H, 0.08))
-      // Hard boundary constraint — keeps nodes inside [PAD, W-PAD] × [PAD, H-PAD]
       .force('bounds', boundsForce(nodes, W, H, PAD));
 
     const link = linkGroup
@@ -271,8 +267,6 @@ function NetworkPanel({
     });
 
     sim.on('end', () => {
-      // Place cluster labels at the TOP of each cluster's bounding box,
-      // so they don't sit on top of nodes.
       const byCluster = d3.group(nodes, (d) => d.cluster);
       const placements = Array.from(byCluster, ([cluster, ns]) => {
         const xs = ns.map((d) => d.x);
@@ -280,7 +274,7 @@ function NetworkPanel({
         return {
           cluster,
           x: d3.mean(xs),
-          y: Math.min(...ys) - 14, // 14px above the topmost node
+          y: Math.min(...ys) - 14,
         };
       });
 
@@ -297,7 +291,6 @@ function NetworkPanel({
         .attr('letter-spacing', '0.06em')
         .attr('text-anchor', 'middle')
         .attr('fill', (d) => colors[d.cluster] || '#1F1A17')
-        // White stroke "halo" so labels read on top of edges and dots
         .attr('paint-order', 'stroke')
         .attr('stroke', '#FFFFFF')
         .attr('stroke-width', 4)
@@ -363,17 +356,20 @@ function NetworkPanel({
         return touchesActive ? 2 : 0.8;
       });
 
+    // Region labels: now show for the active region AND all 5 kin (was just the active region)
+    // Active region gets bolder weight + slightly larger size; kin get standard weight
     svg.select('.region-labels').selectAll('text')
       .transition().duration(200)
       .attr('opacity', (d) => {
         if (!activeRegion) return 0;
         return isActive(d) || isNeighbour(d) ? 1 : 0;
       })
-      .attr('font-weight', (d) => isActive(d) ? 600 : 500);
+      .attr('font-weight', (d) => isActive(d) ? 700 : 500)
+      .attr('font-size', (d) => isActive(d) ? 12 : 10.5);
 
     svg.select('.cluster-labels').selectAll('text')
       .transition().duration(200)
-      .attr('opacity', activeRegion ? 0.3 : 0.92);
+      .attr('opacity', activeRegion ? 0.18 : 0.92);
   }, [activeRegion, selectedRegion, neighbours]);
 
   return (
@@ -390,7 +386,7 @@ function NetworkPanel({
 }
 
 // ---------------------------------------------------------------------------
-// ActiveRegionPanel — the comparative kin readout below the two graphs
+// ActiveRegionPanel
 // ---------------------------------------------------------------------------
 
 function ActiveRegionPanel({ regions, identityNeighbours, terroirNeighbours, name }) {
@@ -523,7 +519,6 @@ function clusterForce(nodes, W, H, strength = 0.08) {
   const cols = Math.ceil(Math.sqrt(clusters.length));
   const rows = Math.ceil(clusters.length / cols);
   const anchors = {};
-  // Anchor positions inside the padded rect so clusters don't aim at edges
   clusters.forEach((c, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -543,7 +538,6 @@ function clusterForce(nodes, W, H, strength = 0.08) {
   };
 }
 
-// Hard-clamp boundary force — applied after all other forces each tick.
 function boundsForce(nodes, W, H, pad) {
   return () => {
     for (const d of nodes) {

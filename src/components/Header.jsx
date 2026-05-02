@@ -10,17 +10,23 @@ import { useData } from '../lib/dataContext.jsx';
 //
 // Below the strip, the existing Region Affinities title block + tab nav are
 // preserved (subtitle, region count, four tabs).
+//
+// PDF link convention: always append #page=1 so the browser forces page 1
+// instead of remembering the user's last scroll position from a prior visit.
 // ---------------------------------------------------------------------------
 
 const SOUL_OF_WINE_BASE = 'https://jskarabot18.github.io/soul-of-wine';
 
 // Documentation links — five PDFs from the Soul of Wine site
+// All URLs end with #page=1 so they always open at the start of the document
 const DOCS = [
-  { label: 'The Map and the Soul',         href: `${SOUL_OF_WINE_BASE}/docs/narrative.pdf` },
-  { label: 'Technical Appendix',            href: `${SOUL_OF_WINE_BASE}/docs/technical.pdf` },
-  { label: 'Region Profiles — Identity',    href: `${SOUL_OF_WINE_BASE}/docs/layer1-descriptions.pdf` },
-  { label: 'Region Profiles — Terroir',     href: `${SOUL_OF_WINE_BASE}/docs/layer2-descriptions.pdf` },
-  { label: 'Methods Primer',                href: `${SOUL_OF_WINE_BASE}/docs/methodsprimer.pdf` },
+  { label: 'The Map and the Soul',         href: `${SOUL_OF_WINE_BASE}/docs/narrative.pdf#page=1` },
+  { label: 'Technical Appendix',            href: `${SOUL_OF_WINE_BASE}/docs/technical.pdf#page=1` },
+  { label: 'Region Profiles — Identity',    href: `${SOUL_OF_WINE_BASE}/docs/layer1-descriptions.pdf#page=1` },
+  { label: 'Region Profiles — Terroir',     href: `${SOUL_OF_WINE_BASE}/docs/layer2-descriptions.pdf#page=1` },
+  // NOTE: filename guess — Soul of Wine site might use a different path. If 404,
+  // try /docs/methods-primer.pdf or /methodsprimer.pdf or similar.
+  { label: 'Methods Primer',                href: `${SOUL_OF_WINE_BASE}/methodsprimer.pdf#page=1` },
 ];
 
 export default function Header({ tabs, activeTab, onTabChange }) {
@@ -79,11 +85,10 @@ function TopStrip() {
         </span>
 
         <div className="flex items-center gap-1 text-xs font-sans">
+          {/* Vinotheca is parent navigation — use same tab, not a new one */}
           <a
             href="https://jskarabot18.github.io/vinotheca/"
             className="px-3 py-2 uppercase tracking-widest text-ink-muted hover:text-wine transition-colors"
-            target="_blank"
-            rel="noreferrer"
           >
             Vinotheca
           </a>

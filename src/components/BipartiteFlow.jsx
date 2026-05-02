@@ -390,7 +390,7 @@ function CellDetail({ identity, terroir, regions, isPersistent, onClear, onRegio
         </span>
         {isPersistent && (
           <button onClick={onClear} className="ml-auto text-xs text-wine hover:underline">
-            clear selection
+            reset selection
           </button>
         )}
       </div>

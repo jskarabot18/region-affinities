@@ -163,7 +163,7 @@ function Picker({ regions, selected, onToggle, onClear, onSurprise }) {
                 onClick={onClear}
                 className="text-ink-muted hover:text-wine"
               >
-                clear
+                reset
               </button>
             )}
           </div>
