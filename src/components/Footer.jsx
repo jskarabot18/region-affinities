@@ -2,9 +2,13 @@
 // Footer — Vinotheca-family lower-left.
 //
 // Mirrors TasteRank Explorer:
-//   centred wine-red italic motto with grape-cluster ornaments
+//   centred wine-red italic motto with leaf-shaped typographic ornaments
 //   row of links (GitHub · License · CC BY-NC 4.0 · Vinotheca · Correspondence)
 //   bottom: © Jure Skarabot · MMXXVI
+//
+// Ornament: ❧ (U+2767, "Rotated Floral Heart Bullet") — a true text glyph
+// rather than an emoji, so it inherits the wine-red colour and italic styling
+// of its surrounding text and renders consistently across all platforms.
 // ---------------------------------------------------------------------------
 
 export default function Footer() {
@@ -12,10 +16,10 @@ export default function Footer() {
     <footer className="border-t border-parchment-edge bg-parchment-warm mt-12">
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="text-center mb-4">
-          <p className="font-serif italic text-wine text-base inline-flex items-center gap-2">
-            <span aria-hidden="true">🍇</span>
+          <p className="font-serif italic text-wine text-base inline-flex items-center gap-3">
+            <span aria-hidden="true">❧</span>
             <span>in vino, cognitio</span>
-            <span aria-hidden="true">🍇</span>
+            <span aria-hidden="true">❧</span>
           </p>
         </div>
 
