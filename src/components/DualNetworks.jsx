@@ -194,7 +194,8 @@ function NetworkPanel({
     const H = Math.max(560, Math.min(680, width * 0.95));
 
     const svg = d3.select(svgRef.current)
-      .attr('viewBox', [0, 0, W, H])
+      .attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('data-fullviewbox', `0 0 ${W} ${H}`)
       .attr('width', '100%')
       .attr('height', H);
 
@@ -332,6 +333,78 @@ function NetworkPanel({
     const isActive = (d) => d.id === activeRegion;
     const isNeighbour = (d) => neighbourSet.has(d.id);
     const isSelected = (d) => d.id === selectedRegion;
+
+    // ---------------------------------------------------------------------
+    // Zoom-to-fit: when a region is focused, transition the viewBox to a
+    // bounding box around the focused node + its top-K neighbours, with
+    // padding for labels. On reset, transition back to the full canvas.
+    // ---------------------------------------------------------------------
+    const fullViewBox = svg.attr('data-fullviewbox');
+
+    if (activeRegion && fullViewBox) {
+      // Pull positions from the rendered circles. We use cx/cy attributes
+      // so this works regardless of simulation cooling state.
+      const focusIds = new Set([activeRegion, ...neighbourSet]);
+      const focusNodes = svg.select('.nodes').selectAll('circle')
+        .filter((d) => focusIds.has(d.id))
+        .nodes()
+        .map((c) => ({
+          x: parseFloat(c.getAttribute('cx')),
+          y: parseFloat(c.getAttribute('cy')),
+        }))
+        .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+
+      if (focusNodes.length > 0) {
+        const xs = focusNodes.map((p) => p.x);
+        const ys = focusNodes.map((p) => p.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+
+        // Padding so labels and node halos aren't clipped at the edges.
+        // A bit of vertical extra room because labels sit ABOVE nodes.
+        const padX = 90;
+        const padTop = 60;
+        const padBot = 40;
+
+        let bx = minX - padX;
+        let by = minY - padTop;
+        let bw = (maxX - minX) + padX * 2;
+        let bh = (maxY - minY) + padTop + padBot;
+
+        // Preserve the canvas aspect ratio so the SVG doesn't stretch.
+        const [, , fullW, fullH] = fullViewBox.split(/[\s,]+/).map(Number);
+        const targetAspect = fullW / fullH;
+        const currentAspect = bw / bh;
+        if (currentAspect > targetAspect) {
+          const newH = bw / targetAspect;
+          by -= (newH - bh) / 2;
+          bh = newH;
+        } else {
+          const newW = bh * targetAspect;
+          bx -= (newW - bw) / 2;
+          bw = newW;
+        }
+
+        // Don't zoom in past a sensible minimum.
+        const minW = fullW * 0.35;
+        if (bw < minW) {
+          const cx = bx + bw / 2;
+          const cy = by + bh / 2;
+          bw = minW;
+          bh = minW / targetAspect;
+          bx = cx - bw / 2;
+          by = cy - bh / 2;
+        }
+
+        svg.transition().duration(600).ease(d3.easeCubicInOut)
+          .attr('viewBox', `${bx} ${by} ${bw} ${bh}`);
+      }
+    } else if (fullViewBox) {
+      svg.transition().duration(600).ease(d3.easeCubicInOut)
+        .attr('viewBox', fullViewBox);
+    }
 
     svg.select('.nodes').selectAll('circle')
       .transition().duration(200)
