@@ -31,10 +31,8 @@ export default function DualNetworks() {
   const [searchValue, setSearchValue] = useState('');
 
   const activeRegion = hoveredRegion ?? selectedRegion;
-  // Camera/zoom uses a different priority: once selected, hover stops moving
-  // the camera — otherwise hovering nearby nodes after a click yanks the
-  // zoom away from the focused region.
-  const zoomRegion = selectedRegion ?? hoveredRegion;
+  // Camera only moves on click/search — hover drives highlighting but not zoom.
+  const zoomRegion = selectedRegion;
 
   const searchMatches = useMemo(() => {
     if (!searchValue.trim()) return [];
