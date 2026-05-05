@@ -384,7 +384,7 @@ function NetworkPanel({
 
     svg.select('.cluster-labels').selectAll('text')
       .transition().duration(200)
-      .attr('opacity', activeRegion ? 0.18 : 0.92);
+      .attr('opacity', activeRegion ? 0 : 0.92);
   }, [activeRegion, selectedRegion, neighbours]);
 
   // Zoom-to-fit: separate effect so a bug here can't break highlighting.
