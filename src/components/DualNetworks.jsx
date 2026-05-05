@@ -166,6 +166,11 @@ function NetworkPanel({
 }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
+  // Mirror activeRegion in a ref so async handlers (like sim.on('end'),
+  // which fires when the simulation cools — long after the init effect has
+  // captured its closure) can read the current focused state.
+  const activeRegionRef = useRef(activeRegion);
+  activeRegionRef.current = activeRegion;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -314,7 +319,9 @@ function NetworkPanel({
         .attr('pointer-events', 'none')
         .transition()
         .duration(400)
-        .attr('opacity', 0.92);
+        // Respect current focus state: if a region is focused when the
+        // simulation finishes, keep cluster labels hidden.
+        .attr('opacity', activeRegionRef.current ? 0 : 0.92);
     });
 
     return () => sim.stop();
