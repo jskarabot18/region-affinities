@@ -372,27 +372,24 @@ function NetworkPanel({
       });
 
     // Region labels: now show for the active region AND all 5 kin (was just the active region)
-    // Active region gets bolder weight + slightly larger size; kin get standard weight.
-    // Font size is scaled inversely to the current zoom level so labels render
-    // at a consistent on-screen size regardless of how much the camera zoomed in.
-    const labelScale = computeLabelScale(svg, zoomRegion, neighbours);
+    // Active region gets bolder weight + slightly larger size; kin get standard weight
     svg.select('.region-labels').selectAll('text')
-      .transition().duration(600).ease(d3.easeCubicInOut)
+      .transition().duration(200)
       .attr('opacity', (d) => {
         if (!activeRegion) return 0;
         return isActive(d) || isNeighbour(d) ? 1 : 0;
       })
       .attr('font-weight', (d) => isActive(d) ? 700 : 500)
-      .attr('font-size', (d) => (isActive(d) ? 12 : 10.5) * labelScale)
-      .attr('stroke-width', 3 * labelScale);
+      .attr('font-size', (d) => isActive(d) ? 12 : 10.5);
 
     svg.select('.cluster-labels').selectAll('text')
       .transition().duration(200)
       .attr('opacity', activeRegion ? 0.18 : 0.92);
-  }, [activeRegion, zoomRegion, selectedRegion, neighbours]);
+  }, [activeRegion, selectedRegion, neighbours]);
 
   // Zoom-to-fit: separate effect so a bug here can't break highlighting.
-  // Uses zoomRegion (selection-only) — hover doesn't move the camera.
+  // Uses zoomRegion (selection-prioritised), NOT activeRegion (hover-prioritised),
+  // so that hovering nearby nodes after a click doesn't yank the camera.
   useEffect(() => {
     const svg = d3.select(svgRef.current);
     if (svg.empty()) return;
@@ -400,9 +397,68 @@ function NetworkPanel({
     const fullViewBox = svg.attr('data-fullviewbox');
     if (!fullViewBox) return;
 
-    const target = computeTargetViewBox(svg, zoomRegion, neighbours);
+    if (!zoomRegion) {
+      svg.transition('zoom').duration(600).ease(d3.easeCubicInOut)
+        .attr('viewBox', fullViewBox);
+      return;
+    }
+
+    let neighbourSet = new Set();
+    if (neighbours) {
+      const entry = neighbours.find((n) => n.region === zoomRegion);
+      if (entry) neighbourSet = new Set(entry.neighbours.map((n) => n.name));
+    }
+    const focusIds = new Set([zoomRegion, ...neighbourSet]);
+
+    const focusPositions = svg.select('.nodes').selectAll('circle')
+      .filter((d) => focusIds.has(d.id))
+      .nodes()
+      .map((c) => ({
+        x: parseFloat(c.getAttribute('cx')),
+        y: parseFloat(c.getAttribute('cy')),
+      }))
+      .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+
+    if (focusPositions.length === 0) return;
+
+    const xs = focusPositions.map((p) => p.x);
+    const ys = focusPositions.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+
+    const padX = 90, padTop = 60, padBot = 40;
+    let bx = minX - padX;
+    let by = minY - padTop;
+    let bw = (maxX - minX) + padX * 2;
+    let bh = (maxY - minY) + padTop + padBot;
+
+    const [, , fullW, fullH] = fullViewBox.split(/[\s,]+/).map(Number);
+    const targetAspect = fullW / fullH;
+    const currentAspect = bw / bh;
+    if (currentAspect > targetAspect) {
+      const newH = bw / targetAspect;
+      by -= (newH - bh) / 2;
+      bh = newH;
+    } else {
+      const newW = bh * targetAspect;
+      bx -= (newW - bw) / 2;
+      bw = newW;
+    }
+
+    const minW = fullW * 0.7;
+    if (bw < minW) {
+      const cx = bx + bw / 2;
+      const cy = by + bh / 2;
+      bw = minW;
+      bh = minW / targetAspect;
+      bx = cx - bw / 2;
+      by = cy - bh / 2;
+    }
+
     svg.transition('zoom').duration(600).ease(d3.easeCubicInOut)
-      .attr('viewBox', target ?? fullViewBox);
+      .attr('viewBox', `${bx} ${by} ${bw} ${bh}`);
   }, [zoomRegion, neighbours]);
 
   return (
@@ -541,91 +597,6 @@ function ClusterLegend({ title, colors }) {
       </ul>
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Zoom helpers (shared between zoom effect and label-scaling in the
-// highlight effect, so both stay in sync as the camera moves).
-// ---------------------------------------------------------------------------
-
-// Compute the viewBox the camera should transition to for the given focused
-// region. Returns null if there's no focus or we can't read positions yet,
-// in which case the caller should fall back to the full viewBox.
-function computeTargetViewBox(svg, focusRegion, neighbours) {
-  if (!focusRegion) return null;
-  const fullViewBox = svg.attr('data-fullviewbox');
-  if (!fullViewBox) return null;
-
-  let neighbourSet = new Set();
-  if (neighbours) {
-    const entry = neighbours.find((n) => n.region === focusRegion);
-    if (entry) neighbourSet = new Set(entry.neighbours.map((n) => n.name));
-  }
-  const focusIds = new Set([focusRegion, ...neighbourSet]);
-
-  const positions = svg.select('.nodes').selectAll('circle')
-    .filter((d) => focusIds.has(d.id))
-    .nodes()
-    .map((c) => ({
-      x: parseFloat(c.getAttribute('cx')),
-      y: parseFloat(c.getAttribute('cy')),
-    }))
-    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
-
-  if (positions.length === 0) return null;
-
-  const xs = positions.map((p) => p.x);
-  const ys = positions.map((p) => p.y);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-
-  const padX = 90, padTop = 60, padBot = 40;
-  let bx = minX - padX;
-  let by = minY - padTop;
-  let bw = (maxX - minX) + padX * 2;
-  let bh = (maxY - minY) + padTop + padBot;
-
-  const [, , fullW, fullH] = fullViewBox.split(/[\s,]+/).map(Number);
-  const aspect = fullW / fullH;
-  if (bw / bh > aspect) {
-    const newH = bw / aspect;
-    by -= (newH - bh) / 2;
-    bh = newH;
-  } else {
-    const newW = bh * aspect;
-    bx -= (newW - bw) / 2;
-    bw = newW;
-  }
-
-  // Don't zoom in past 35% of the canvas — keeps labels from getting absurd.
-  const minW = fullW * 0.35;
-  if (bw < minW) {
-    const cx = bx + bw / 2;
-    const cy = by + bh / 2;
-    bw = minW;
-    bh = minW / aspect;
-    bx = cx - bw / 2;
-    by = cy - bh / 2;
-  }
-
-  return `${bx} ${by} ${bw} ${bh}`;
-}
-
-// Returns the factor by which we need to shrink labels so they appear at
-// roughly constant on-screen size as the camera zooms in. = targetW / fullW.
-// At 1.0 (no zoom) labels render at their declared size. At 0.4 (~2.5x zoom)
-// labels render at 40% of their declared size in viewBox units, which means
-// ~the same on-screen pixels.
-function computeLabelScale(svg, focusRegion, neighbours) {
-  const fullViewBox = svg.attr('data-fullviewbox');
-  if (!fullViewBox) return 1;
-  const target = computeTargetViewBox(svg, focusRegion, neighbours);
-  if (!target) return 1;
-  const [, , fullW] = fullViewBox.split(/[\s,]+/).map(Number);
-  const [, , targetW] = target.split(/[\s,]+/).map(Number);
-  return targetW / fullW;
 }
 
 // ---------------------------------------------------------------------------
