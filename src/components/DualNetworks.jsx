@@ -68,7 +68,7 @@ export default function DualNetworks() {
           zoomRegion={zoomRegion}
           selectedRegion={selectedRegion}
           onHover={setHoveredRegion}
-          onClick={(name) => setSelectedRegion(name === selectedRegion ? null : name)}
+          onClick={(name) => setSelectedRegion((prev) => (name === prev ? null : name))}
         />
         <NetworkPanel
           title="Terroir"
@@ -81,7 +81,7 @@ export default function DualNetworks() {
           zoomRegion={zoomRegion}
           selectedRegion={selectedRegion}
           onHover={setHoveredRegion}
-          onClick={(name) => setSelectedRegion(name === selectedRegion ? null : name)}
+          onClick={(name) => setSelectedRegion((prev) => (name === prev ? null : name))}
         />
       </div>
 
@@ -237,8 +237,7 @@ function NetworkPanel({
       .style('cursor', 'pointer')
       .on('mouseenter', (_, d) => onHover(d.id))
       .on('mouseleave', () => onHover(null))
-      .on('click', (_, d) => onClick(d.id))
-      .call(drag(sim));
+      .call(drag(sim, onClick));
 
     const regionLabel = regionLabelGroup
       .selectAll('text')
@@ -646,17 +645,26 @@ function boundsForce(nodes, W, H, pad) {
   };
 }
 
-function drag(sim) {
+function drag(sim, onClick) {
+  let startX = 0, startY = 0, moved = false;
+  const CLICK_THRESHOLD_PX = 4; // total movement under this = treat as click
+
   function dragstart(event, d) {
     if (!event.active) sim.alphaTarget(0.3).restart();
     d.fx = d.x; d.fy = d.y;
+    startX = event.x; startY = event.y;
+    moved = false;
   }
   function dragmove(event, d) {
+    if (Math.hypot(event.x - startX, event.y - startY) > CLICK_THRESHOLD_PX) {
+      moved = true;
+    }
     d.fx = event.x; d.fy = event.y;
   }
   function dragend(event, d) {
     if (!event.active) sim.alphaTarget(0);
     d.fx = null; d.fy = null;
+    if (!moved && onClick) onClick(d.id);
   }
   return d3.drag().on('start', dragstart).on('drag', dragmove).on('end', dragend);
 }
