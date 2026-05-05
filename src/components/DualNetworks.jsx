@@ -171,6 +171,13 @@ function NetworkPanel({
   // captured its closure) can read the current focused state.
   const activeRegionRef = useRef(activeRegion);
   activeRegionRef.current = activeRegion;
+  // Cluster label placements, computed when the force simulation cools.
+  // A separate effect handles the actual render so labels appear/disappear
+  // purely based on React state (focus), not D3 simulation events.
+  const clusterPlacementsRef = useRef([]);
+  // Bumped when sim.on('end') updates placements, so the render effect can
+  // depend on it and re-run.
+  const [placementsTick, setPlacementsTick] = useState(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -298,30 +305,10 @@ function NetworkPanel({
         };
       });
 
-      labelGroup
-        .selectAll('text')
-        .data(placements, (d) => d.cluster)
-        .join('text')
-        .text((d) => d.cluster)
-        .attr('x', (d) => d.x)
-        .attr('y', (d) => d.y)
-        .attr('font-family', 'Inter, system-ui, sans-serif')
-        .attr('font-size', 11)
-        .attr('font-weight', 600)
-        .attr('letter-spacing', '0.06em')
-        .attr('text-anchor', 'middle')
-        .attr('fill', (d) => colors[d.cluster] || '#1F1A17')
-        .attr('paint-order', 'stroke')
-        .attr('stroke', '#FFFFFF')
-        .attr('stroke-width', 4)
-        .attr('stroke-linejoin', 'round')
-        .attr('opacity', 0)
-        .attr('pointer-events', 'none')
-        .transition()
-        .duration(400)
-        // Respect current focus state: if a region is focused when the
-        // simulation finishes, keep cluster labels hidden.
-        .attr('opacity', activeRegionRef.current ? 0 : 0.92);
+      // Cache placements; the dedicated render effect will handle drawing
+      // them with the correct opacity for the current focus state.
+      clusterPlacementsRef.current = placements;
+      setPlacementsTick((t) => t + 1);
     });
 
     return () => sim.stop();
@@ -388,11 +375,51 @@ function NetworkPanel({
       })
       .attr('font-weight', (d) => isActive(d) ? 700 : 500)
       .attr('font-size', (d) => isActive(d) ? 12 : 10.5);
-
-    svg.select('.cluster-labels').selectAll('text')
-      .transition().duration(200)
-      .attr('opacity', activeRegion ? 0 : 0.92);
+    // Cluster labels are handled by their own dedicated effect (below) so
+    // they can't lose a race against sim.on('end').
   }, [activeRegion, selectedRegion, neighbours]);
+
+  // Render cluster labels. Re-runs whenever:
+  //   - placements update (sim cools; setPlacementsTick fires)
+  //   - activeRegion changes (we want to fade them in/out)
+  // Always reads the latest activeRegion via React state, so there's no
+  // possibility of a stale-closure or simulation-timing race.
+  useEffect(() => {
+    const svg = d3.select(svgRef.current);
+    if (svg.empty()) return;
+    const labelGroup = svg.select('.cluster-labels');
+    if (labelGroup.empty()) return;
+
+    const placements = clusterPlacementsRef.current;
+    const targetOpacity = activeRegion ? 0 : 0.92;
+
+    labelGroup
+      .selectAll('text')
+      .data(placements, (d) => d.cluster)
+      .join(
+        (enter) => enter.append('text')
+          .text((d) => d.cluster)
+          .attr('x', (d) => d.x)
+          .attr('y', (d) => d.y)
+          .attr('font-family', 'Inter, system-ui, sans-serif')
+          .attr('font-size', 11)
+          .attr('font-weight', 600)
+          .attr('letter-spacing', '0.06em')
+          .attr('text-anchor', 'middle')
+          .attr('fill', (d) => colors[d.cluster] || '#1F1A17')
+          .attr('paint-order', 'stroke')
+          .attr('stroke', '#FFFFFF')
+          .attr('stroke-width', 4)
+          .attr('stroke-linejoin', 'round')
+          .attr('opacity', 0)
+          .attr('pointer-events', 'none'),
+        (update) => update
+          .attr('x', (d) => d.x)
+          .attr('y', (d) => d.y),
+      )
+      .transition('cluster-label-fade').duration(300)
+      .attr('opacity', targetOpacity);
+  }, [activeRegion, placementsTick, colors]);
 
   // Zoom-to-fit: separate effect so a bug here can't break highlighting.
   // Uses zoomRegion (selection-prioritised), NOT activeRegion (hover-prioritised),
