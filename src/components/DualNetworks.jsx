@@ -31,6 +31,10 @@ export default function DualNetworks() {
   const [searchValue, setSearchValue] = useState('');
 
   const activeRegion = hoveredRegion ?? selectedRegion;
+  // Camera/zoom uses a different priority: once selected, hover stops moving
+  // the camera — otherwise hovering nearby nodes after a click yanks the
+  // zoom away from the focused region.
+  const zoomRegion = selectedRegion ?? hoveredRegion;
 
   const searchMatches = useMemo(() => {
     if (!searchValue.trim()) return [];
@@ -63,6 +67,7 @@ export default function DualNetworks() {
           colors={IDENTITY_COLORS}
           clusterKey="identity_cluster"
           activeRegion={activeRegion}
+          zoomRegion={zoomRegion}
           selectedRegion={selectedRegion}
           onHover={setHoveredRegion}
           onClick={(name) => setSelectedRegion(name === selectedRegion ? null : name)}
@@ -75,6 +80,7 @@ export default function DualNetworks() {
           colors={TERROIR_COLORS}
           clusterKey="terroir_cluster"
           activeRegion={activeRegion}
+          zoomRegion={zoomRegion}
           selectedRegion={selectedRegion}
           onHover={setHoveredRegion}
           onClick={(name) => setSelectedRegion(name === selectedRegion ? null : name)}
@@ -158,7 +164,7 @@ function Toolbar({ searchValue, setSearchValue, searchMatches, onPick, activeReg
 
 function NetworkPanel({
   title, subtitle, regions, neighbours, colors, clusterKey,
-  activeRegion, selectedRegion, onHover, onClick,
+  activeRegion, zoomRegion, selectedRegion, onHover, onClick,
 }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
@@ -385,8 +391,8 @@ function NetworkPanel({
   }, [activeRegion, selectedRegion, neighbours]);
 
   // Zoom-to-fit: separate effect so a bug here can't break highlighting.
-  // When a region is focused, animate the SVG viewBox to a bounding box
-  // around the focused node + its top-K neighbours. On reset, animate back.
+  // Uses zoomRegion (selection-prioritised), NOT activeRegion (hover-prioritised),
+  // so that hovering nearby nodes after a click doesn't yank the camera.
   useEffect(() => {
     const svg = d3.select(svgRef.current);
     if (svg.empty()) return;
@@ -394,7 +400,7 @@ function NetworkPanel({
     const fullViewBox = svg.attr('data-fullviewbox');
     if (!fullViewBox) return;
 
-    if (!activeRegion) {
+    if (!zoomRegion) {
       svg.transition('zoom').duration(600).ease(d3.easeCubicInOut)
         .attr('viewBox', fullViewBox);
       return;
@@ -402,10 +408,10 @@ function NetworkPanel({
 
     let neighbourSet = new Set();
     if (neighbours) {
-      const entry = neighbours.find((n) => n.region === activeRegion);
+      const entry = neighbours.find((n) => n.region === zoomRegion);
       if (entry) neighbourSet = new Set(entry.neighbours.map((n) => n.name));
     }
-    const focusIds = new Set([activeRegion, ...neighbourSet]);
+    const focusIds = new Set([zoomRegion, ...neighbourSet]);
 
     const focusPositions = svg.select('.nodes').selectAll('circle')
       .filter((d) => focusIds.has(d.id))
@@ -456,7 +462,7 @@ function NetworkPanel({
 
     svg.transition('zoom').duration(600).ease(d3.easeCubicInOut)
       .attr('viewBox', `${bx} ${by} ${bw} ${bh}`);
-  }, [activeRegion, neighbours]);
+  }, [zoomRegion, neighbours]);
 
   return (
     <div className="bg-white border border-parchment-edge rounded-lg overflow-hidden">
