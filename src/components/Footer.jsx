@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Footer — Vinotheca-family lower-left.
 //
-// Mirrors TasteRank Explorer:
+// Mirrors the canonical family footer:
 //   centred wine-red italic motto with leaf-shaped typographic ornaments
 //   row of links (GitHub · License · CC BY-NC 4.0 · Vinotheca · Correspondence)
 //   bottom: © Jure Skarabot · MMXXVI
@@ -9,6 +9,9 @@
 // Ornament: ❧ (U+2767, "Rotated Floral Heart Bullet") — a true text glyph
 // rather than an emoji, so it inherits the wine-red colour and italic styling
 // of its surrounding text and renders consistently across all platforms.
+//
+// "License · CC BY-NC 4.0" is a single link to the LICENSE file in the repo
+// (matching the pattern used by Vinotheca, the Atlases, and TasteRank).
 // ---------------------------------------------------------------------------
 
 export default function Footer() {
@@ -32,14 +35,12 @@ export default function Footer() {
             GitHub
           </a>
           <span className="text-ink-subtle">·</span>
-          <span>License</span>
-          <span className="text-ink-subtle">·</span>
           <a
-            href="https://creativecommons.org/licenses/by-nc/4.0/"
+            href="https://github.com/jskarabot18/region-affinities/blob/main/LICENSE"
             className="hover:text-wine transition-colors"
             target="_blank" rel="noreferrer"
           >
-            CC BY-NC 4.0
+            License · CC BY-NC 4.0
           </a>
           <span className="text-ink-subtle">·</span>
           <a
