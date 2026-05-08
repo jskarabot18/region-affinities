@@ -1,0 +1,49 @@
+% =====================================================================
+% Vinotheca Tools — Shared LaTeX preamble
+% Used by every document across the Tools section to keep typography,
+% spacing, headings, and front-matter consistent.
+% =====================================================================
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{caption}
+
+% Section heading style — consistent across all docs
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.5em}{}
+
+\setlength{\parskip}{0.6\baselineskip}
+\setlength{\parindent}{0pt}
+
+% Front-matter title block macro
+% Usage: \vinothecatitle{Tool Name}{Document Type}{Subtitle}{Companions line}
+\newcommand{\vinothecatitle}[4]{%
+  \begin{center}
+    {\Large\bfseries #1}\\[2pt]
+    {\large #2}\\[6pt]
+    {\itshape #3}\\[14pt]
+    Jure Skarabot \quad\textperiodcentered\quad May 2026\\[6pt]
+    {\small\itshape Companion documents: #4}
+  \end{center}
+  \vspace{1em}
+  \hrule
+  \vspace{1.5em}
+}
+
+% Abstract environment styled consistently
+\renewenvironment{abstract}{%
+  \vspace{0.5em}
+  \noindent\textbf{Abstract.}\itshape\quad
+}{\par\vspace{1em}\hrule\vspace{1em}}
