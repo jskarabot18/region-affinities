@@ -23,9 +23,10 @@ export default {
           subtle: '#9A9089',
         },
         parchment: {
-          DEFAULT: '#FAF7F2',
+          DEFAULT: '#FAF6F1',
           warm: '#F5F0E6',
           edge: '#E8E1D3',
+          raised: '#FFFDF8',
         },
       },
       fontFamily: {
