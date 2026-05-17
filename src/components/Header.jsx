@@ -6,10 +6,18 @@ import { useData } from '../lib/dataContext.jsx';
 //
 // Top strip mirrors TasteRank Explorer:
 //   left:  product wordmark in wine-red serif
-//   right: VINOTHECA · DOCUMENTATION ▼ (dropdown of 5 Soul of Wine PDFs)
+//   right: VINOTHECA · DOCUMENTATION ▼ (dropdown of 6 Soul of Wine PDFs)
 //
 // Below the strip, the existing Region Affinities title block + tab nav are
 // preserved (subtitle, region count, four tabs).
+//
+// The four canonical PDFs (Summary, Technical Appendix, Methods Primer,
+// Data Appendix) plus the two Region Reference documents are shared with
+// the Soul of Wine study site, per §2's "two faces share supporting PDFs"
+// architecture. Region Affinities links cross-repo rather than self-hosting
+// — Soul of Wine is the canonical home for the Work's documentation. The
+// narrative paper ("The Map and the Soul") lives on the Study site as a
+// study-class artefact and is not part of this dropdown.
 //
 // PDF link convention: always append #page=1 so the browser forces page 1
 // instead of remembering the user's last scroll position from a prior visit.
@@ -17,14 +25,14 @@ import { useData } from '../lib/dataContext.jsx';
 
 const SOUL_OF_WINE_BASE = 'https://jskarabot18.github.io/soul-of-wine';
 
-// Documentation links — five PDFs from the Soul of Wine site
-// All URLs end with #page=1 so they always open at the start of the document
+// Six PDFs — the canonical four + two Region Reference documents
 const DOCS = [
-  { label: 'The Map and the Soul',         href: `${SOUL_OF_WINE_BASE}/docs/narrative.pdf#page=1` },
-  { label: 'Technical Appendix',            href: `${SOUL_OF_WINE_BASE}/docs/technical.pdf#page=1` },
-  { label: 'Region Profiles — Identity',    href: `${SOUL_OF_WINE_BASE}/docs/layer1-descriptions.pdf#page=1` },
-  { label: 'Region Profiles — Terroir',     href: `${SOUL_OF_WINE_BASE}/docs/layer2-descriptions.pdf#page=1` },
-  { label: 'Methods Primer',                href: `${SOUL_OF_WINE_BASE}/docs/methods-primer.pdf#page=1` },
+  { label: 'Summary',                       href: `${SOUL_OF_WINE_BASE}/docs/SoulOfWine_Summary.pdf#page=1` },
+  { label: 'Technical Appendix',            href: `${SOUL_OF_WINE_BASE}/docs/SoulOfWine_Technical_Appendix.pdf#page=1` },
+  { label: 'Methods Primer',                href: `${SOUL_OF_WINE_BASE}/docs/SoulOfWine_Methods_Primer.pdf#page=1` },
+  { label: 'Data Appendix',                 href: `${SOUL_OF_WINE_BASE}/docs/SoulOfWine_Data_Appendix.pdf#page=1` },
+  { label: 'Region Reference — Identity',   href: `${SOUL_OF_WINE_BASE}/docs/layer1-descriptions.pdf#page=1` },
+  { label: 'Region Reference — Terroir',    href: `${SOUL_OF_WINE_BASE}/docs/layer2-descriptions.pdf#page=1` },
 ];
 
 export default function Header({ tabs, activeTab, onTabChange }) {
