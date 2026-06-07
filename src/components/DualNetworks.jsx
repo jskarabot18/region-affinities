@@ -182,6 +182,8 @@ function NetworkPanel({
   // A separate effect handles the actual render so labels appear/disappear
   // purely based on React state (focus), not D3 simulation events.
   const clusterPlacementsRef = useRef([]);
+  // De-overlapped positions for ALL region labels, computed when the sim cools.
+  const labelPosRef = useRef(new Map());
   // Bumped when sim.on('end') updates placements, so the render effect can
   // depend on it and re-run.
   const [placementsTick, setPlacementsTick] = useState(0);
@@ -234,10 +236,10 @@ function NetworkPanel({
     const labelGroup = svg.append('g').attr('class', 'cluster-labels');
 
     const sim = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id((d) => d.id).distance(48).strength(0.45))
-      .force('charge', d3.forceManyBody().strength(-130))
-      .force('center', d3.forceCenter(W / 2, H / 2).strength(0.12))
-      .force('collide', d3.forceCollide(NODE_RADIUS + 5))
+      .force('link', d3.forceLink(links).id((d) => d.id).distance(64).strength(0.38))
+      .force('charge', d3.forceManyBody().strength(-230))
+      .force('center', d3.forceCenter(W / 2, H / 2).strength(0.09))
+      .force('collide', d3.forceCollide(NODE_RADIUS + 9))
       .force('cluster', clusterForce(nodes, W, H, 0.05))
       .force('bounds', boundsForce(nodes, W, H, PAD));
 
@@ -268,15 +270,15 @@ function NetworkPanel({
       .join('text')
       .text((d) => d.id)
       .attr('font-family', 'Inter, system-ui, sans-serif')
-      .attr('font-size', 11)
-      .attr('font-weight', 500)
-      .attr('fill', '#1F1A17')
+      .attr('font-size', 9)
+      .attr('font-weight', 400)
+      .attr('fill', '#5A534C')
       .attr('text-anchor', 'middle')
       .attr('pointer-events', 'none')
       .attr('opacity', 0)
       .attr('paint-order', 'stroke')
       .attr('stroke', PARCHMENT)
-      .attr('stroke-width', 3)
+      .attr('stroke-width', 2.5)
       .attr('stroke-linejoin', 'round');
 
     sim.on('tick', () => {
@@ -319,6 +321,22 @@ function NetworkPanel({
       // Cache placements; the dedicated render effect will handle drawing
       // them with the correct opacity for the current focus state.
       clusterPlacementsRef.current = placements;
+
+      // Compute non-overlapping positions for ALL region labels (all 59 are
+      // shown at once now). Each label fans away from its neighbours while a
+      // gentle spring keeps it near its own node. Computed once here, when
+      // positions are final; the render effect applies them.
+      const labelItems = nodes.map((d) => ({
+        id: d.id,
+        x: d.x,
+        baseX: d.x,
+        baseY: d.y - NODE_RADIUS - 6,
+        y: d.y - NODE_RADIUS - 6,
+        w: d.id.length * 6.6 + 8,
+      }));
+      resolveLabelOverlaps(labelItems, 13, W, H);
+      labelPosRef.current = new Map(labelItems.map((it) => [it.id, { x: it.x, y: it.y }]));
+
       setPlacementsTick((t) => t + 1);
     });
 
@@ -376,48 +394,21 @@ function NetworkPanel({
         return touchesActive ? 2 : 0.8;
       });
 
-    // Region labels: now show for the active region AND all 5 kin (was just the active region)
-    // Active region gets bolder weight + slightly larger size; kin get standard weight
+    // Region labels: ALL names are shown at all times as an ambient layer.
+    // When a region is focused, it and its kin are emphasised (darker, bolder,
+    // larger) and the rest dim back so the focus still reads clearly.
     svg.select('.region-labels').selectAll('text')
       .transition().duration(200)
       .attr('opacity', (d) => {
-        if (!activeRegion) return 0;
-        return isActive(d) || isNeighbour(d) ? 1 : 0;
+        if (!activeRegion) return 0.78;
+        return isActive(d) || isNeighbour(d) ? 1 : 0.18;
       })
-      .attr('font-weight', (d) => isActive(d) ? 700 : 500)
-      .attr('font-size', (d) => isActive(d) ? 12 : 10.5);
-
-    // De-overlap the visible labels. When the focused region's kin pack
-    // tightly (a dense terroir cluster, say), their centred labels would
-    // otherwise pile on top of each other; this fans them apart vertically
-    // while keeping each near its own node. Reads live node positions from
-    // the DOM so it is correct whether the sim is warm or cooled.
-    if (activeRegion) {
-      const pos = {};
-      svg.select('.nodes').selectAll('circle').each(function (d) {
-        pos[d.id] = { x: +this.getAttribute('cx'), y: +this.getAttribute('cy') };
-      });
-      const fullViewBox = svg.attr('data-fullviewbox');
-      const H = fullViewBox ? Number(fullViewBox.split(/[\s,]+/)[3]) : 0;
-      const visible = [activeRegion, ...neighbourSet].filter((id) => pos[id] && Number.isFinite(pos[id].x));
-      const items = visible.map((id) => ({
-        id,
-        x: pos[id].x,
-        baseY: pos[id].y - NODE_RADIUS - 5,
-        y: pos[id].y - NODE_RADIUS - 5,
-        // crude width estimate: Inter ~6px/char at font-size 11, plus padding
-        w: id.length * 6 + 6,
-      }));
-      resolveLabelOverlaps(items, 13, H);
-      const byId = new Map(items.map((it) => [it.id, it]));
-      svg.select('.region-labels').selectAll('text')
-        .filter((d) => byId.has(d.id))
-        .transition('label-pos').duration(200)
-        .attr('x', (d) => byId.get(d.id).x)
-        .attr('y', (d) => byId.get(d.id).y);
-    }
-    // Cluster labels are handled by their own dedicated effect (below) so
-    // they can't lose a race against sim.on('end').
+      .attr('fill', (d) => (activeRegion && (isActive(d) || isNeighbour(d))) ? '#1F1A17' : '#5A534C')
+      .attr('font-weight', (d) => isActive(d) ? 700 : isNeighbour(d) ? 600 : 400)
+      .attr('font-size', (d) => isActive(d) ? 12 : isNeighbour(d) ? 10.5 : 9);
+    // Label POSITIONS (the de-overlap fan) are applied by a dedicated effect
+    // keyed on placementsTick, so focus changes only restyle — they never
+    // re-run the layout or race the simulation.
   }, [activeRegion, selectedRegion, neighbours]);
 
   // Render cluster labels. Re-runs whenever:
@@ -432,7 +423,11 @@ function NetworkPanel({
     if (labelGroup.empty()) return;
 
     const placements = clusterPlacementsRef.current;
-    const targetOpacity = activeRegion ? 0 : 0.92;
+    // Cluster labels are now superseded by the always-on region names (all 59
+    // shown), so they stay hidden to avoid double-labelling. Cluster identity
+    // still reads from node colour + the legend below. Kept here (rather than
+    // deleted) so it's a one-line revert if the cluster headers are wanted back.
+    const targetOpacity = 0;
 
     labelGroup
       .selectAll('text')
@@ -461,6 +456,21 @@ function NetworkPanel({
       .transition('cluster-label-fade').duration(300)
       .attr('opacity', targetOpacity);
   }, [activeRegion, placementsTick, colors]);
+
+  // Apply the de-overlapped region-label positions. Re-runs when the sim
+  // cools (placementsTick) — including after an expand re-layout. Focus
+  // changes do NOT move labels (they only restyle, in the highlight effect),
+  // so the fan is computed once per layout and stays stable under zoom.
+  useEffect(() => {
+    const svg = d3.select(svgRef.current);
+    if (svg.empty()) return;
+    const map = labelPosRef.current;
+    if (!map || map.size === 0) return;
+    svg.select('.region-labels').selectAll('text')
+      .transition('label-pos').duration(450).ease(d3.easeCubicInOut)
+      .attr('x', (d) => (map.get(d.id) ? map.get(d.id).x : d.x))
+      .attr('y', (d) => (map.get(d.id) ? map.get(d.id).y : d.y - NODE_RADIUS - 6));
+  }, [placementsTick]);
 
   // Zoom-to-fit: separate effect so a bug here can't break highlighting.
   // Uses zoomRegion (selection-prioritised), NOT activeRegion (hover-prioritised),
@@ -720,15 +730,16 @@ function ClusterLegend({ title, colors }) {
 // Forces
 // ---------------------------------------------------------------------------
 
-// Fan apart a small set of visible labels so their text doesn't overlap.
-// Each item is { id, x, y, baseY, w }; y is nudged (vertical priority, the
-// least disruptive direction) until no two boxes collide, with a gentle pull
-// back toward each label's anchor so it stays near its own node. Iteration
-// count is tiny because at most six labels (focused region + five kin) are
-// ever visible at once. Mutates items in place.
-function resolveLabelOverlaps(items, lineHeight, H) {
+// Fan apart a set of visible labels so their text doesn't overlap. Each item
+// is { id, x, y, baseX, baseY, w }; y is nudged (vertical priority, the least
+// disruptive direction) until no two boxes collide, with a gentle pull back
+// toward each label's anchor so it stays near its own node. Now runs over all
+// region labels at once (all 59 are shown), so the iteration budget is higher;
+// 59 labels keep this well under a millisecond and it runs only when the
+// simulation cools, not every frame.
+function resolveLabelOverlaps(items, lineHeight, W, H) {
   if (!items || items.length < 2) return;
-  for (let iter = 0; iter < 80; iter++) {
+  for (let iter = 0; iter < 160; iter++) {
     let moved = false;
     for (let i = 0; i < items.length; i++) {
       for (let j = i + 1; j < items.length; j++) {
@@ -738,7 +749,7 @@ function resolveLabelOverlaps(items, lineHeight, H) {
         const dy = a.y - b.y;
         const overlapY = lineHeight - Math.abs(dy);
         if (overlapX > 0 && overlapY > 0) {
-          const push = overlapY / 2 + 0.25;
+          const push = overlapY / 2 + 0.3;
           const dir = dy === 0 ? (a.baseY <= b.baseY ? -1 : 1) : Math.sign(dy);
           a.y += dir * push;
           b.y -= dir * push;
@@ -746,11 +757,15 @@ function resolveLabelOverlaps(items, lineHeight, H) {
         }
       }
     }
-    // gentle spring back toward the node anchor
-    for (const it of items) it.y += (it.baseY - it.y) * 0.015;
+    // gentle spring back toward the node anchor (keeps labels near their dots)
+    for (const it of items) it.y += ((it.baseY ?? it.y) - it.y) * 0.06;
     if (!moved) break;
   }
-  if (H) for (const it of items) it.y = Math.max(12, Math.min(H - 8, it.y));
+  // keep inside the canvas
+  for (const it of items) {
+    if (H) it.y = Math.max(12, Math.min(H - 8, it.y));
+    if (W) it.x = Math.max(it.w / 2 + 4, Math.min(W - it.w / 2 - 4, it.x));
+  }
 }
 
 function clusterForce(nodes, W, H, strength = 0.05) {
