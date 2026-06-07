@@ -29,6 +29,8 @@ export default function DualNetworks() {
   const { regions, identityNeighbours, terroirNeighbours, selectedRegion, setSelectedRegion } = useData();
   const [hoveredRegion, setHoveredRegion] = useState(null);
   const [searchValue, setSearchValue] = useState('');
+  // Which panel (if any) is expanded to fill the screen. null = side-by-side.
+  const [expandedPanel, setExpandedPanel] = useState(null);
 
   const activeRegion = hoveredRegion ?? selectedRegion;
   // Camera only moves on click/search — hover drives highlighting but not zoom.
@@ -69,6 +71,8 @@ export default function DualNetworks() {
           selectedRegion={selectedRegion}
           onHover={setHoveredRegion}
           onClick={(name) => setSelectedRegion((prev) => (name === prev ? null : name))}
+          isExpanded={expandedPanel === 'Identity'}
+          onToggleExpand={() => setExpandedPanel((p) => (p === 'Identity' ? null : 'Identity'))}
         />
         <NetworkPanel
           title="Terroir"
@@ -82,6 +86,8 @@ export default function DualNetworks() {
           selectedRegion={selectedRegion}
           onHover={setHoveredRegion}
           onClick={(name) => setSelectedRegion((prev) => (name === prev ? null : name))}
+          isExpanded={expandedPanel === 'Terroir'}
+          onToggleExpand={() => setExpandedPanel((p) => (p === 'Terroir' ? null : 'Terroir'))}
         />
       </div>
 
@@ -163,6 +169,7 @@ function Toolbar({ searchValue, setSearchValue, searchMatches, onPick, activeReg
 function NetworkPanel({
   title, subtitle, regions, neighbours, colors, clusterKey,
   activeRegion, zoomRegion, selectedRegion, onHover, onClick,
+  isExpanded, onToggleExpand,
 }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
@@ -205,9 +212,13 @@ function NetworkPanel({
       });
     });
 
-    const { width } = container.getBoundingClientRect();
-    const W = width;
-    const H = Math.max(560, Math.min(680, width * 0.95));
+    const rect = container.getBoundingClientRect();
+    const W = rect.width;
+    // When expanded to fill the screen, use the real available height so the
+    // layout breathes into the space; otherwise keep the compact aspect.
+    const H = isExpanded
+      ? Math.max(420, rect.height)
+      : Math.max(560, Math.min(680, W * 0.95));
 
     const svg = d3.select(svgRef.current)
       .attr('viewBox', `0 0 ${W} ${H}`)
@@ -312,7 +323,7 @@ function NetworkPanel({
     });
 
     return () => sim.stop();
-  }, [regions, neighbours, clusterKey, colors]);
+  }, [regions, neighbours, clusterKey, colors, isExpanded]);
 
   // Update visual highlighting when activeRegion changes (no re-init)
   useEffect(() => {
@@ -375,6 +386,36 @@ function NetworkPanel({
       })
       .attr('font-weight', (d) => isActive(d) ? 700 : 500)
       .attr('font-size', (d) => isActive(d) ? 12 : 10.5);
+
+    // De-overlap the visible labels. When the focused region's kin pack
+    // tightly (a dense terroir cluster, say), their centred labels would
+    // otherwise pile on top of each other; this fans them apart vertically
+    // while keeping each near its own node. Reads live node positions from
+    // the DOM so it is correct whether the sim is warm or cooled.
+    if (activeRegion) {
+      const pos = {};
+      svg.select('.nodes').selectAll('circle').each(function (d) {
+        pos[d.id] = { x: +this.getAttribute('cx'), y: +this.getAttribute('cy') };
+      });
+      const fullViewBox = svg.attr('data-fullviewbox');
+      const H = fullViewBox ? Number(fullViewBox.split(/[\s,]+/)[3]) : 0;
+      const visible = [activeRegion, ...neighbourSet].filter((id) => pos[id] && Number.isFinite(pos[id].x));
+      const items = visible.map((id) => ({
+        id,
+        x: pos[id].x,
+        baseY: pos[id].y - NODE_RADIUS - 5,
+        y: pos[id].y - NODE_RADIUS - 5,
+        // crude width estimate: Inter ~6px/char at font-size 11, plus padding
+        w: id.length * 6 + 6,
+      }));
+      resolveLabelOverlaps(items, 13, H);
+      const byId = new Map(items.map((it) => [it.id, it]));
+      svg.select('.region-labels').selectAll('text')
+        .filter((d) => byId.has(d.id))
+        .transition().duration(200)
+        .attr('x', (d) => byId.get(d.id).x)
+        .attr('y', (d) => byId.get(d.id).y);
+    }
     // Cluster labels are handled by their own dedicated effect (below) so
     // they can't lose a race against sim.on('end').
   }, [activeRegion, selectedRegion, neighbours]);
@@ -495,11 +536,53 @@ function NetworkPanel({
       .attr('viewBox', `${bx} ${by} ${bw} ${bh}`);
   }, [zoomRegion, neighbours]);
 
+  const ExpandToggle = (
+    <button
+      type="button"
+      onClick={onToggleExpand}
+      className="ml-auto flex items-center gap-1 text-xs text-wine hover:underline font-sans shrink-0"
+      title={isExpanded ? 'Collapse' : 'Expand to full screen'}
+      aria-label={isExpanded ? 'Collapse panel' : 'Expand panel to full screen'}
+    >
+      {isExpanded ? (
+        <>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></svg>
+          Collapse
+        </>
+      ) : (
+        <>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" /></svg>
+          Expand
+        </>
+      )}
+    </button>
+  );
+
+  if (isExpanded) {
+    return (
+      <div className="fixed inset-0 z-50 bg-white flex flex-col">
+        <div className="px-4 py-3 border-b border-parchment-edge bg-parchment-warm flex items-center gap-3">
+          <div>
+            <h3 className="font-serif text-lg text-ink">{title}</h3>
+            <p className="small-caps text-ink-subtle mt-0.5">{subtitle}</p>
+          </div>
+          {ExpandToggle}
+        </div>
+        <div ref={containerRef} className="flex-1 min-h-0 p-3">
+          <svg ref={svgRef} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white border border-parchment-edge rounded-lg overflow-hidden">
-      <div className="px-4 py-3 border-b border-parchment-edge bg-parchment-warm">
-        <h3 className="font-serif text-lg text-ink">{title}</h3>
-        <p className="small-caps text-ink-subtle mt-0.5">{subtitle}</p>
+      <div className="px-4 py-3 border-b border-parchment-edge bg-parchment-warm flex items-center gap-3">
+        <div>
+          <h3 className="font-serif text-lg text-ink">{title}</h3>
+          <p className="small-caps text-ink-subtle mt-0.5">{subtitle}</p>
+        </div>
+        {ExpandToggle}
       </div>
       <div ref={containerRef} className="p-3">
         <svg ref={svgRef} />
@@ -636,6 +719,39 @@ function ClusterLegend({ title, colors }) {
 // ---------------------------------------------------------------------------
 // Forces
 // ---------------------------------------------------------------------------
+
+// Fan apart a small set of visible labels so their text doesn't overlap.
+// Each item is { id, x, y, baseY, w }; y is nudged (vertical priority, the
+// least disruptive direction) until no two boxes collide, with a gentle pull
+// back toward each label's anchor so it stays near its own node. Iteration
+// count is tiny because at most six labels (focused region + five kin) are
+// ever visible at once. Mutates items in place.
+function resolveLabelOverlaps(items, lineHeight, H) {
+  if (!items || items.length < 2) return;
+  for (let iter = 0; iter < 80; iter++) {
+    let moved = false;
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        const a = items[i];
+        const b = items[j];
+        const overlapX = (a.w + b.w) / 2 - Math.abs(a.x - b.x);
+        const dy = a.y - b.y;
+        const overlapY = lineHeight - Math.abs(dy);
+        if (overlapX > 0 && overlapY > 0) {
+          const push = overlapY / 2 + 0.25;
+          const dir = dy === 0 ? (a.baseY <= b.baseY ? -1 : 1) : Math.sign(dy);
+          a.y += dir * push;
+          b.y -= dir * push;
+          moved = true;
+        }
+      }
+    }
+    // gentle spring back toward the node anchor
+    for (const it of items) it.y += (it.baseY - it.y) * 0.015;
+    if (!moved) break;
+  }
+  if (H) for (const it of items) it.y = Math.max(12, Math.min(H - 8, it.y));
+}
 
 function clusterForce(nodes, W, H, strength = 0.05) {
   // Arrange cluster anchors evenly around a circle inside the canvas.
