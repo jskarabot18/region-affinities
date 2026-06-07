@@ -412,7 +412,7 @@ function NetworkPanel({
       const byId = new Map(items.map((it) => [it.id, it]));
       svg.select('.region-labels').selectAll('text')
         .filter((d) => byId.has(d.id))
-        .transition().duration(200)
+        .transition('label-pos').duration(200)
         .attr('x', (d) => byId.get(d.id).x)
         .attr('y', (d) => byId.get(d.id).y);
     }
