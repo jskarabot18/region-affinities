@@ -348,13 +348,11 @@ function NetworkPanel({
     const svg = d3.select(svgRef.current);
     if (svg.empty()) return;
 
-    let neighbourSet = new Set();
-    if (activeRegion && neighbours) {
-      const entry = neighbours.find((n) => n.region === activeRegion);
-      if (entry) {
-        neighbourSet = new Set(entry.neighbours.map((n) => n.name));
-      }
-    }
+    // The highlighted subgraph = the focal region plus EVERY node joined to it
+    // by a drawn edge — including regions that list the focal as one of THEIR
+    // neighbours even when the focal's own top-K doesn't list them back. That
+    // bidirectional set is what the red edges connect, so it's what we name.
+    const neighbourSet = connectedNeighbourSet(neighbours, activeRegion);
 
     const isActive = (d) => d.id === activeRegion;
     const isNeighbour = (d) => neighbourSet.has(d.id);
@@ -394,19 +392,18 @@ function NetworkPanel({
         return touchesActive ? 2 : 0.8;
       });
 
-    // Region labels: ALL names are shown at all times as an ambient layer.
-    // When a region is focused, it and its kin are emphasised (darker, bolder,
-    // larger); the rest of the network stays LEGIBLE (just lighter + smaller),
-    // so every node in the associated subgraph still reads as a named place.
+    // Region labels. IDLE: all names shown as an ambient layer. FOCUSED: only
+    // the connected subgraph is named (focal + every red-edge neighbour); all
+    // other names are hidden so the focus reads as a clean local map.
     svg.select('.region-labels').selectAll('text')
       .transition().duration(200)
       .attr('opacity', (d) => {
         if (!activeRegion) return 0.78;
-        return isActive(d) || isNeighbour(d) ? 1 : 0.55;
+        return isActive(d) || isNeighbour(d) ? 1 : 0;
       })
       .attr('fill', (d) => (activeRegion && (isActive(d) || isNeighbour(d))) ? '#1F1A17' : '#5A534C')
       .attr('font-weight', (d) => isActive(d) ? 700 : isNeighbour(d) ? 600 : 400)
-      .attr('font-size', (d) => isActive(d) ? 12 : isNeighbour(d) ? 10.5 : 8.5);
+      .attr('font-size', (d) => isActive(d) ? 12 : isNeighbour(d) ? 10.5 : 9);
     // Label POSITIONS (the de-overlap fan) are applied by a dedicated effect
     // keyed on placementsTick, so focus changes only restyle — they never
     // re-run the layout or race the simulation.
@@ -489,11 +486,7 @@ function NetworkPanel({
       return;
     }
 
-    let neighbourSet = new Set();
-    if (neighbours) {
-      const entry = neighbours.find((n) => n.region === zoomRegion);
-      if (entry) neighbourSet = new Set(entry.neighbours.map((n) => n.name));
-    }
+    const neighbourSet = connectedNeighbourSet(neighbours, zoomRegion);
     const focusIds = new Set([zoomRegion, ...neighbourSet]);
 
     const focusPositions = svg.select('.nodes').selectAll('circle')
@@ -730,6 +723,23 @@ function ClusterLegend({ title, colors }) {
 // ---------------------------------------------------------------------------
 // Forces
 // ---------------------------------------------------------------------------
+
+// The set of regions joined to `region` by a drawn edge, in BOTH directions:
+// the region's own top-K neighbours, plus any region that lists it among
+// theirs. This matches the union-of-top-K edge set the graph actually draws,
+// so highlighting/labelling/zoom all agree on what "the subgraph" is.
+function connectedNeighbourSet(neighbours, region) {
+  const set = new Set();
+  if (!neighbours || !region) return set;
+  neighbours.forEach((entry) => {
+    if (entry.region === region) {
+      entry.neighbours.forEach((n) => set.add(n.name));
+    } else if (entry.neighbours.some((n) => n.name === region)) {
+      set.add(entry.region);
+    }
+  });
+  return set;
+}
 
 // Fan apart a set of visible labels so their text doesn't overlap. Each item
 // is { id, x, y, baseX, baseY, w }; y is nudged (vertical priority, the least
