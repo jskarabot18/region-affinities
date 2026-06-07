@@ -270,7 +270,7 @@ function NetworkPanel({
       .join('text')
       .text((d) => d.id)
       .attr('font-family', 'Inter, system-ui, sans-serif')
-      .attr('font-size', 9)
+      .attr('font-size', 8.5)
       .attr('font-weight', 400)
       .attr('fill', '#5A534C')
       .attr('text-anchor', 'middle')
@@ -403,7 +403,7 @@ function NetworkPanel({
       })
       .attr('fill', (d) => (activeRegion && (isActive(d) || isNeighbour(d))) ? '#1F1A17' : '#5A534C')
       .attr('font-weight', (d) => isActive(d) ? 700 : isNeighbour(d) ? 600 : 400)
-      .attr('font-size', (d) => isActive(d) ? 12 : isNeighbour(d) ? 10.5 : 9);
+      .attr('font-size', (d) => isActive(d) ? 11 : isNeighbour(d) ? 9.5 : 8.5);
     // Label POSITIONS (the de-overlap fan) are applied by a dedicated effect
     // keyed on placementsTick, so focus changes only restyle — they never
     // re-run the layout or race the simulation.
