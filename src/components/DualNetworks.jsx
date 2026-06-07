@@ -396,16 +396,17 @@ function NetworkPanel({
 
     // Region labels: ALL names are shown at all times as an ambient layer.
     // When a region is focused, it and its kin are emphasised (darker, bolder,
-    // larger) and the rest dim back so the focus still reads clearly.
+    // larger); the rest of the network stays LEGIBLE (just lighter + smaller),
+    // so every node in the associated subgraph still reads as a named place.
     svg.select('.region-labels').selectAll('text')
       .transition().duration(200)
       .attr('opacity', (d) => {
         if (!activeRegion) return 0.78;
-        return isActive(d) || isNeighbour(d) ? 1 : 0.18;
+        return isActive(d) || isNeighbour(d) ? 1 : 0.55;
       })
       .attr('fill', (d) => (activeRegion && (isActive(d) || isNeighbour(d))) ? '#1F1A17' : '#5A534C')
       .attr('font-weight', (d) => isActive(d) ? 700 : isNeighbour(d) ? 600 : 400)
-      .attr('font-size', (d) => isActive(d) ? 12 : isNeighbour(d) ? 10.5 : 9);
+      .attr('font-size', (d) => isActive(d) ? 12 : isNeighbour(d) ? 10.5 : 8.5);
     // Label POSITIONS (the de-overlap fan) are applied by a dedicated effect
     // keyed on placementsTick, so focus changes only restyle — they never
     // re-run the layout or race the simulation.
