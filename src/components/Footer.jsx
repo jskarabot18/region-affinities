@@ -28,7 +28,7 @@ export default function Footer() {
 
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs font-sans text-ink-muted">
           <a
-            href="https://github.com/jskarabot18/region-affinities"
+            href="https://github.com/thevinotheca/thevinotheca.com"
             className="hover:text-wine transition-colors"
             target="_blank" rel="noreferrer"
           >
@@ -36,9 +36,8 @@ export default function Footer() {
           </a>
           <span className="text-ink-subtle">·</span>
           <a
-            href="https://github.com/jskarabot18/region-affinities/blob/main/LICENSE"
+            href="/LICENSE"
             className="hover:text-wine transition-colors"
-            target="_blank" rel="noreferrer"
           >
             License · CC BY-NC 4.0
           </a>
