@@ -21,7 +21,8 @@
 @layer components {
   .nav-link {
     @apply px-4 py-2 text-sm tracking-wide uppercase font-sans font-medium
-           text-ink-muted transition-colors hover:text-wine border-b-2 border-transparent;
+           text-ink-muted transition-colors hover:text-wine border-b-2 border-transparent
+           whitespace-nowrap shrink-0;
   }
   .nav-link-active {
     @apply text-wine border-wine;

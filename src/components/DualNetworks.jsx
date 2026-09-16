@@ -155,7 +155,7 @@ function Toolbar({ searchValue, setSearchValue, searchMatches, onPick, activeReg
             </button>
           </>
         ) : (
-          <span className="text-ink-subtle">Hover a region — or search above — to see its kin in both systems.</span>
+          <span className="text-ink-subtle">Hover a region to highlight its kin in both graphs. Tap or click one to pin it — the view centres and a detail panel opens below.</span>
         )}
       </div>
     </div>

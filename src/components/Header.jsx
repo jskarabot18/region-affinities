@@ -60,7 +60,16 @@ export default function Header({ tabs, activeTab, onTabChange }) {
           </p>
         </div>
 
-        <nav className="max-w-6xl mx-auto px-6 flex gap-1 overflow-x-auto" role="tablist">
+        {/* Single scrolling line at every width — never wraps.
+            Both the end padding and the edge fade live on the trailing span
+            below rather than on this container, because neither works as a
+            container property here: WebKit leaves a scroll container's END
+            padding out of the scrollable overflow area (pr-* is painted but
+            unreachable at max scroll), and an element's background paints
+            BEHIND its child boxes (so it could never fade the tabs out). A
+            flex item solves both — its width counts toward scrollWidth, and
+            it paints above the buttons. */}
+        <nav className="max-w-6xl mx-auto pl-6 flex gap-1 overflow-x-auto" role="tablist">
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -72,6 +81,19 @@ export default function Header({ tabs, activeTab, onTabChange }) {
               {t.label}
             </button>
           ))}
+
+          {/* Trailing spacer + right-edge fade, in one element. `sticky right-0`
+              only ever pulls a box TOWARD the edge, never past its natural
+              position, which gives all three behaviours without a listener:
+                mid-scroll  — rides the right edge, fading the tab beneath it;
+                at max scroll — rests in its own 2rem, clear of the last tab;
+                row fits    — never shifts, sits over bare background, unseen.
+              aria-hidden keeps this decorative box out of the tablist. */}
+          <span
+            aria-hidden="true"
+            className="sticky right-0 shrink-0 self-stretch w-8 pointer-events-none
+                       bg-gradient-to-l from-parchment-warm"
+          />
         </nav>
       </div>
     </header>
