@@ -44,7 +44,7 @@ export default function Footer() {
           </a>
           <span className="text-ink-subtle">·</span>
           <a
-            href="https://jskarabot18.github.io/vinotheca/"
+            href="/"
             className="hover:text-wine transition-colors"
           >
             Vinotheca

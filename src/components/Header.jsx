@@ -23,7 +23,7 @@ import { useData } from '../lib/dataContext.jsx';
 // instead of remembering the user's last scroll position from a prior visit.
 // ---------------------------------------------------------------------------
 
-const SOUL_OF_WINE_BASE = 'https://jskarabot18.github.io/soul-of-wine';
+const SOUL_OF_WINE_BASE = '/library/inquiries/soul-of-wine';
 
 // Six PDFs — the canonical four + two Region Reference documents
 const DOCS = [
@@ -93,7 +93,7 @@ function TopStrip() {
         <div className="flex items-center gap-1 text-xs font-sans">
           {/* Vinotheca is parent navigation — use same tab, not a new one */}
           <a
-            href="https://jskarabot18.github.io/vinotheca/"
+            href="/"
             className="px-3 py-2 uppercase tracking-widest text-ink-muted hover:text-wine transition-colors"
           >
             Vinotheca
