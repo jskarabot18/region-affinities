@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 // In dev (`npm run dev`), base resolves to '/' as expected.
 export default defineConfig({
   plugins: [react()],
-  base: '/region-affinities/',
+  base: '/library/inquiries/region-affinities/',
   build: {
     outDir: 'dist',
     sourcemap: false,
